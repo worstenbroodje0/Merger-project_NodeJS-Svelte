@@ -1,7 +1,8 @@
 const { drizzle } = require("drizzle-orm/mysql2");
 const mysql = require("mysql2/promise");
-const { media } = require("./schema");
+const { media, users } = require("./schema");
 const { eq } = require("drizzle-orm");
+const { v4: uuidv4 } = require("uuid");
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST ?? "localhost",
@@ -10,7 +11,7 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME ?? "mydb",
 });
 
-const db = drizzle(pool, { schema: { media }, mode: "default" });
+const db = drizzle(pool, { schema: { media, users }, mode: "default" });
 
 // Auto-increment handles IDs, but we keep newId() for compatibility
 function newId() {
@@ -52,4 +53,54 @@ async function deleteMediaById(id) {
   return db.delete(media).where(eq(media.id, Number(id)));
 }
 
-module.exports = { db, newId, getMediaData, getMediaById, insertMedia, updateMediaById, deleteMediaById };
+// User functions
+async function getUsersData() {
+  return db.select().from(users);
+}
+
+async function getUserById(id) {
+  const rows = await db.select().from(users).where(eq(users.id, Number(id)));
+  return rows[0] ?? null;
+}
+
+async function getUserByEmail(email) {
+  const rows = await db.select().from(users).where(eq(users.email, email));
+  return rows[0] ?? null;
+}
+
+async function insertUser({ name, email, password, role = 'user' }) {
+  const result = await db.insert(users).values({
+    uuid: uuidv4(),
+    name,
+    email,
+    password,
+    role,
+  });
+  const insertId = result[0]?.insertId;
+  return getUserById(insertId);
+}
+
+async function updateUserById(id, fields) {
+  await db.update(users).set(fields).where(eq(users.id, Number(id)));
+  return getUserById(id);
+}
+
+async function deleteUserById(id) {
+  return db.delete(users).where(eq(users.id, Number(id)));
+}
+
+module.exports = {
+  db,
+  newId,
+  getMediaData,
+  getMediaById,
+  insertMedia,
+  updateMediaById,
+  deleteMediaById,
+  getUsersData,
+  getUserById,
+  getUserByEmail,
+  insertUser,
+  updateUserById,
+  deleteUserById
+};

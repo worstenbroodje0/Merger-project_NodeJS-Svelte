@@ -17,6 +17,7 @@ fs.mkdirSync('thumbnails', { recursive: true });
 // ── FFmpeg helpers ────────────────────────────────────────────────────────────
 function runFFmpeg(args) {
     return new Promise((resolve, reject) => {
+        console.log('[FFmpeg]', args.join(' ')); // <-- add this line
         const ff = spawn(FFMPEG, args);
         let errOut = '';
         ff.stderr.on('data', d => (errOut += d));
@@ -61,12 +62,24 @@ function getVideoDimensions(filePath) {
 function generateThumbnail(videoPath, thumbPath) {
     return new Promise(resolve => {
         fs.mkdirSync(path.dirname(thumbPath), { recursive: true });
-        const ff = spawn(FFMPEG, ['-y', '-i', videoPath, '-ss', '00:00:01', '-vframes', '1', '-vf', 'scale=1280:720', '-q:v', '2', thumbPath]);
-        ff.on('close', code => resolve(code === 0 ? thumbPath : null));
+        const ff = spawn(FFMPEG, [
+            '-y',
+            '-i', videoPath,
+            '-ss', '1',
+            '-vframes', '1',
+            '-vf', 'scale=1280:-2',
+            '-f', 'image2',
+            thumbPath
+        ]);
+        let errOut = '';
+        ff.stderr.on('data', d => (errOut += d));
+        ff.on('close', code => {
+            if (code !== 0) console.warn('[thumbnail] FFmpeg failed:', errOut.slice(-300));
+            resolve(code === 0 ? thumbPath : null);
+        });
         ff.on('error', () => resolve(null));
     });
 }
-
 function cleanupFiles(files) {
     for (const f of files) {
         try { if (f && fs.existsSync(f)) fs.unlinkSync(f); } catch (_) { }
@@ -249,7 +262,6 @@ exports.mergeByIds = catchAsync(async (req, res) => {
     if (!Array.isArray(videoIds)) videoIds = [videoIds];
     if (videoIds.length < 2) return res.status(400).json({ error: 'Need at least 2 videos to merge' });
 
-    // Normalize all IDs to integers
     videoIds = videoIds.map(id => parseInt(id, 10));
     if (videoIds.some(isNaN)) return res.status(400).json({ error: 'Invalid video ID provided' });
 
@@ -260,6 +272,18 @@ exports.mergeByIds = catchAsync(async (req, res) => {
         if (req.body.outro) outro = typeof req.body.outro === 'string' ? JSON.parse(req.body.outro) : req.body.outro;
     } catch (e) {
         return res.status(400).json({ error: 'Invalid intro/outro JSON: ' + e.message });
+    }
+
+    const tmpFiles = [];
+
+    // Attach uploaded logo files to the slate objects and register for cleanup
+    if (req.files?.introLogo?.[0]) {
+        if (intro) intro.logo = req.files.introLogo[0].path;
+        tmpFiles.push(req.files.introLogo[0].path);
+    }
+    if (req.files?.outroLogo?.[0]) {
+        if (outro) outro.logo = req.files.outroLogo[0].path;
+        tmpFiles.push(req.files.outroLogo[0].path);
     }
 
     const allMedia = await getMediaData();
@@ -275,8 +299,6 @@ exports.mergeByIds = catchAsync(async (req, res) => {
     const notFound = filePaths.filter(f => !f.filePath);
     if (notFound.length)
         return res.status(400).json({ error: `Files missing: ${notFound.map(f => f.video.name).join(', ')}` });
-
-    const tmpFiles = [];
 
     try {
         // Step 1: Normalize each video
@@ -297,7 +319,7 @@ exports.mergeByIds = catchAsync(async (req, res) => {
         tmpFiles.push(currentFile);
         await runFFmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', currentFile]);
 
-        // Step 3: Intro / Outro
+        // Step 3: Intro / Outro slates (built in temp, never saved to DB)
         if (intro || outro) {
             const { width: vw, height: vh } = await getVideoDimensions(currentFile);
             if (intro) {
