@@ -19,7 +19,9 @@ const users = mysqlTable("users", {
   email: varchar("email", { length: 255 }).notNull(),
   password: varchar("password", { length: 255 }).notNull(),
   role: mysqlEnum("role", ["user", "admin"]).default("user"),
-  createdAt: timestamp("created_at").defaultNow(),
+  reset_token: varchar("reset_token", { length: 255 }).default(null),
+  reset_token_expires: timestamp("reset_token_expires").default(null),
+  created_at: timestamp("created_at").defaultNow(),
 });
 
 module.exports = { media, users };
