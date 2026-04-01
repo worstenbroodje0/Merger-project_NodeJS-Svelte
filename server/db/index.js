@@ -23,7 +23,7 @@ async function getMediaData() {
 }
 
 async function getMediaById(id) {
-  console.log('[getMediaById] called with:', id, '| type:', typeof id, '| stack:', new Error().stack.split('\n')[2]);
+ 
   const rows = await db.select().from(media).where(eq(media.id, parseInt(id, 10)));
   return rows[0] ?? null;
 }

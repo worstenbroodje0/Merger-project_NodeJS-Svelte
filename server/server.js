@@ -1,10 +1,13 @@
-require('dotenv').config();
+require('dotenv').config({ path: '.env' });
 
-const express     = require('express');
+const express = require('express');
 const mediaRoutes = require('./routes/mediaRoutes');
+const cors = require('cors');
 
-const app  = express();
+const app = express();
 const port = 3000;
+
+app.use(cors());
 
 app.use(express.json());
 
@@ -14,6 +17,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/media', mediaRoutes);
 app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/mail', require('./routes/mailRoutes'));
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
