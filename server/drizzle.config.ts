@@ -7,7 +7,7 @@ export default defineConfig({
   dbCredentials: {
     host:     process.env.DB_HOST     ?? "localhost",
     user:     process.env.DB_USER     ?? "root",
-    password: process.env.DB_PASSWORD ?? /*add env file route here */ "Naamloos170612!",
+    password: process.env.DB_PASSWORD ?? "",
     database: process.env.DB_NAME     ?? "mydb",
   },
 });
