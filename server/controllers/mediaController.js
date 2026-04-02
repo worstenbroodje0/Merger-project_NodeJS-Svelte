@@ -1,5 +1,5 @@
 const catchAsync = require('../utils/catchAsync');
-const { getMediaData, getMediaById, insertMedia, newId } = require('../db');
+const { getMediaData, getMediaById, insertMedia, newId, getMergedMediaData, getMergedMediaById, insertMergedMedia } = require('../db');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -352,7 +352,7 @@ exports.mergeByIds = catchAsync(async (req, res) => {
         let duration = 0;
         try { duration = await getVideoDuration(outputPath); } catch (_) { }
 
-        const newMedia = await insertMedia({
+        const newMedia = await insertMergedMedia({
             name: fileName,
             path: outputPath,
             duration,
@@ -413,7 +413,7 @@ exports.applyOverlay = catchAsync(async (req, res) => {
     let duration = 0;
     try { duration = await getVideoDuration(outputPath); } catch (_) { }
 
-    const newEntry = await insertMedia({
+    const newEntry = await insertMergedMedia({
         name: outputName,
         path: outputPath,
         duration,
@@ -472,7 +472,7 @@ exports.applySlates = catchAsync(async (req, res) => {
         let duration = 0;
         try { duration = await getVideoDuration(outputPath); } catch (_) { }
 
-        const newEntry = await insertMedia({
+        const newEntry = await insertMergedMedia({
             name: outputName,
             path: outputPath,
             duration,
