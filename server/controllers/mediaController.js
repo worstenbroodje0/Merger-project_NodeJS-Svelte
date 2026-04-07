@@ -216,7 +216,11 @@ function buildOverlayFilters(overlays, uploadedImages, videoWidth, videoHeight) 
 
 // ── GET all media ─────────────────────────────────────────────────────────────
 exports.getAllMedia = catchAsync(async (req, res) => {
-    const all = await getMediaData();
+    const [regularMedia, mergedMedia] = await Promise.all([
+        getMediaData(),
+        getMergedMediaData()
+    ]);
+    const all = [...regularMedia, ...mergedMedia];
     res.json({ status: 'success', results: all.length, data: all });
 });
 

@@ -9,6 +9,12 @@ const port = 3000;
 
 app.use(cors());
 
+// Serve static files
+app.use('/uploads', express.static('uploads'));
+app.use('/outputs', express.static('outputs'));
+app.use('/thumbnails', express.static('thumbnails'));
+app.use('/temp', express.static('temp'));
+
 app.use(express.json());
 
 app.get('/', (req, res) => {

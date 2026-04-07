@@ -4,13 +4,15 @@ outputs
 temp
 db.sqlite
 thumbnails
+client
+merger
 
 # Output
 .output
 .vercel
 .netlify
 .wrangler
-/.svelte-kit
+.svelte-kit
 /build
 
 # OS
