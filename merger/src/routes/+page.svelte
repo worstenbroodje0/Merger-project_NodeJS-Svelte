@@ -45,10 +45,6 @@
 			{#each videos as video}
 				<div>
 					<h3>{video.name}</h3>
-					<p>Duration: {video.duration}s</p>
-					<p>Format: {video.format}</p>
-					<p>Size: {Math.round(video.size / 1024 / 1024)}MB</p>
-					<p>Uploaded: {new Date(video.uploadedAt).toLocaleString()}</p>
 					{#if video.tags && video.tags.length > 0}
 						<p>Tags: {video.tags.join(', ')}</p>
 					{/if}
