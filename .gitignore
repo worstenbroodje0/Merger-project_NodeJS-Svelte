@@ -5,7 +5,7 @@ temp
 db.sqlite
 thumbnails
 client
-merger
+
 
 # Output
 .output
