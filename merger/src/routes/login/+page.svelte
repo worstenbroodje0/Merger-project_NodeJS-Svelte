@@ -103,6 +103,9 @@
 				{loading ? 'Signing in...' : 'Sign In'}
 			</button>
 		</form>
+		<div class="forgot-password">
+			<p><a href="/forgot-password">Forgot your password?</a></p>
+		</div>
 
 		<div class="auth-link">
 			<p>Don't have an account? <a href="/signup">Sign up</a></p>

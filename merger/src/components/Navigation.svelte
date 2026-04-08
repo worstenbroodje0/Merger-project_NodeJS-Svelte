@@ -14,8 +14,9 @@
 	<div class="container mx-auto flex items-center justify-between">
 		<div class="flex space-x-6">
 			<a href="/" class="transition-colors hover:text-blue-200">Home</a>
-			<a href="/videos" class="transition-colors hover:text-blue-200">Videos</a>
-			<a href="/merges" class="transition-colors hover:text-blue-200">Merges</a>
+			{#if isAuthenticated}
+				<a href="/video" class="transition-colors hover:text-blue-200">Video</a>
+			{/if}
 		</div>
 		<div>
 			{#if !isAuthenticated}

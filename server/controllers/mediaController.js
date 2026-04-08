@@ -224,6 +224,12 @@ exports.getAllMedia = catchAsync(async (req, res) => {
     res.json({ status: 'success', results: all.length, data: all });
 });
 
+// Get only regular media
+exports.getRegularMedia = catchAsync(async (req, res) => {
+    const regularMedia = await getMediaData();
+    res.json({ status: 'success', results: regularMedia.length, data: regularMedia });
+});
+
 // ── GET single media ──────────────────────────────────────────────────────────
 exports.getMedia = catchAsync(async (req, res) => {
     console.log('[getMedia] params:', req.params, '| method:', req.method, '| url:', req.url);
@@ -364,6 +370,7 @@ exports.mergeByIds = catchAsync(async (req, res) => {
             size: fs.statSync(outputPath).size,
             tags: [],
             uploadedAt: new Date().toISOString(),
+            user_id: req.body.user_id || null,
         });
 
         generateThumbnail(outputPath, path.join('thumbnails', fileName.replace(/\.[^/.]+$/, '') + '.jpg')).catch(() => { });

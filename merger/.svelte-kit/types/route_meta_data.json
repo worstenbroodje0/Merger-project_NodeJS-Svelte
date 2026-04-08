@@ -1,8 +1,10 @@
 {
 	"/": [],
+	"/completion": [],
+	"/forgot-password": [],
 	"/login": [],
 	"/logout": [],
-	"/merges": [],
+	"/reset-password": [],
 	"/signup": [],
-	"/videos": []
+	"/video": []
 }

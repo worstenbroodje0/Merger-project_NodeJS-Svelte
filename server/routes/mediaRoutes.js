@@ -22,6 +22,7 @@ const upload = multer({
 
 // Static routes first
 router.get('/', controller.getAllMedia);
+router.get('/regular', controller.getRegularMedia);
 router.post('/upload', upload.single('video'), controller.uploadVideo);
 router.post('/merge', upload.fields([
     { name: 'introLogo', maxCount: 1 },
