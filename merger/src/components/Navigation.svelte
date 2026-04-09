@@ -19,6 +19,16 @@
 			{/if}
 		</div>
 		<div>
+			{#if user}
+				<p>welcome {user.name}</p>
+			{/if}
+		</div>
+		<div>
+			{#if user?.role?.name === 'admin'}
+				<a href="#" class="transition-colors hover:text-blue-200">Admin</a>
+			{/if}
+		</div>
+		<div>
 			{#if !isAuthenticated}
 				<a href="/login" aria-label="Login" class="transition-colors hover:text-blue-200">Login</a>
 			{:else}
