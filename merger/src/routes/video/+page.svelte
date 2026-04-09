@@ -6,6 +6,8 @@
 	let videos = $state([]);
 	let loading = $state(true);
 	let error = $state(null);
+	let editingVideo = $state(null);
+	let showEditModal = $state(false);
 
 	onMount(() => {
 		// Wait for auth to be ready, then load videos
@@ -90,6 +92,86 @@
 		const path = (video.path || '').toLowerCase();
 		return name.includes('merged') || name.includes('_merged') || path.includes('merged');
 	}
+
+	async function deleteVideo(video) {
+		if (!confirm(`Are you sure you want to delete "${video.name}"?`)) return;
+
+		try {
+			const response = await fetch(`http://localhost:3000/api/media/${video._id || video.id}`, {
+				method: 'DELETE'
+			});
+
+			if (response.ok) {
+				// Remove video from the list
+				const videoId = video._id || video.id;
+				videos = videos.filter((v) => (v._id || v.id) !== videoId);
+				console.log(`Video ${videoId} deleted successfully`);
+			} else {
+				const errorData = await response.json();
+				throw new Error(errorData.error || 'Failed to delete video');
+			}
+		} catch (err) {
+			alert('Error deleting video: ' + err.message);
+		}
+	}
+
+	function openEditModal(video) {
+		editingVideo = {
+			...video,
+			tagsString: video.tags ? video.tags.join(', ') : ''
+		};
+		showEditModal = true;
+	}
+
+	function closeEditModal() {
+		showEditModal = false;
+		editingVideo = null;
+	}
+
+	async function saveVideo() {
+		if (!editingVideo) return;
+
+		try {
+			const response = await fetch(
+				`http://localhost:3000/api/media/${editingVideo._id || editingVideo.id}`,
+				{
+					method: 'PATCH',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						name: editingVideo.name,
+						tags: editingVideo.tagsString
+							? editingVideo.tagsString
+									.split(',')
+									.map((tag) => tag.trim())
+									.filter((tag) => tag)
+							: []
+					})
+				}
+			);
+
+			if (response.ok) {
+				// Update video in the list
+				const result = await response.json();
+				console.log('Update response:', result);
+
+				if (result.data) {
+					videos = videos.map((v) =>
+						(v._id || v.id) === (result.data._id || result.data.id) ? result.data : v
+					);
+					closeEditModal();
+				} else {
+					throw new Error('No data returned from update');
+				}
+			} else {
+				const errorData = await response.json();
+				throw new Error(errorData.error || 'Failed to update video');
+			}
+		} catch (err) {
+			alert('Error updating video: ' + err.message);
+		}
+	}
 </script>
 
 <main class="container mx-auto px-4 py-8">
@@ -136,10 +218,10 @@
 								{#if video.path}
 									{@const src = video.b64
 										? `data:video/mp4;base64,${video.b64}`
-										: `http://localhost:3000/${video.path}`}
+										: `http://localhost:3000/${video.path.replace(/\\/g, '/')}`}
 
 									<!-- svelte-ignore a11y_media_has_caption -->
-									<video class="h-full w-full object-cover" {src} controls />
+									<video class="h-full w-full object-cover" {src} controls preload="metadata" />
 								{:else}
 									<div class="flex h-40 items-center justify-center bg-gray-100">
 										<svg
@@ -171,19 +253,6 @@
 										Merged
 									</div>
 								{/if}
-
-								<!-- Play button overlay -->
-								<div
-									class="bg-opacity-0 hover:bg-opacity-30 absolute inset-0 flex items-center justify-center bg-black transition-all"
-								>
-									<svg
-										class="h-8 w-8 text-white opacity-0 transition-opacity hover:opacity-100"
-										fill="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path d="M8 5v14l11-7z" />
-									</svg>
-								</div>
 							</div>
 						</div>
 
@@ -209,6 +278,22 @@
 									{/each}
 								</div>
 							{/if}
+
+							<!-- Action buttons -->
+							<div class="mt-4 flex gap-2">
+								<button
+									onclick={() => openEditModal(video)}
+									class="flex-1 rounded border border-blue-500 bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
+								>
+									Edit
+								</button>
+								<button
+									onclick={() => deleteVideo(video)}
+									class="flex-1 rounded border border-red-500 bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
+								>
+									Delete
+								</button>
+							</div>
 						</div>
 					</div>
 				{/each}
@@ -216,3 +301,54 @@
 		{/if}
 	</div>
 </main>
+
+<!-- Edit Modal -->
+{#if showEditModal && editingVideo}
+	<div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
+		<div class="w-full max-w-md rounded-lg bg-white p-6">
+			<h2 class="mb-4 text-xl font-bold">Edit Video</h2>
+
+			<div class="space-y-4">
+				<div>
+					<label for="video-name" class="mb-1 block text-sm font-medium text-gray-700">
+						Video Name
+					</label>
+					<input
+						id="video-name"
+						type="text"
+						bind:value={editingVideo.name}
+						class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					/>
+				</div>
+
+				<div>
+					<label for="video-tags" class="mb-1 block text-sm font-medium text-gray-700">
+						Tags (comma separated)
+					</label>
+					<input
+						id="video-tags"
+						type="text"
+						bind:value={editingVideo.tagsString}
+						placeholder="tag1, tag2, tag3"
+						class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+					/>
+				</div>
+			</div>
+
+			<div class="mt-6 flex gap-3">
+				<button
+					onclick={closeEditModal}
+					class="flex-1 rounded border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50"
+				>
+					Cancel
+				</button>
+				<button
+					onclick={saveVideo}
+					class="flex-1 rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+				>
+					Save Changes
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

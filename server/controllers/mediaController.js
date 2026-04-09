@@ -1,5 +1,5 @@
 const catchAsync = require('../utils/catchAsync');
-const { getMediaData, getMediaById, insertMedia, newId, getMergedMediaData, getMergedMediaById, insertMergedMedia } = require('../db');
+const { getMediaData, getMediaById, insertMedia, newId, getMergedMediaData, getMergedMediaById, insertMergedMedia, updateMediaById, deleteMediaById, updateMergedMediaById, deleteMergedMediaById } = require('../db');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -17,7 +17,7 @@ fs.mkdirSync('thumbnails', { recursive: true });
 // ── FFmpeg helpers ────────────────────────────────────────────────────────────
 function runFFmpeg(args) {
     return new Promise((resolve, reject) => {
-        console.log('[FFmpeg]', args.join(' ')); // <-- add this line
+        console.log('[FFmpeg]', args.join(' '));
         const ff = spawn(FFMPEG, args);
         let errOut = '';
         ff.stderr.on('data', d => (errOut += d));
@@ -80,6 +80,7 @@ function generateThumbnail(videoPath, thumbPath) {
         ff.on('error', () => resolve(null));
     });
 }
+
 function cleanupFiles(files) {
     for (const f of files) {
         try { if (f && fs.existsSync(f)) fs.unlinkSync(f); } catch (_) { }
@@ -98,10 +99,12 @@ function resolveVideoPath(video) {
 // ── Slate builder (intro/outro) ───────────────────────────────────────────────
 async function buildSlate(slate, tmpFiles, videoWidth = 1920, videoHeight = 1080) {
     const duration = parseFloat(slate.duration) || 3;
-    const rawColor = slate.color || slate.bgColor || '#000000';
+    const rawColor = slate.color || slate.bgColor || slate.backgroundColor || '#000000';
     const bgColor = rawColor.startsWith('#') ? rawColor.replace('#', '0x') : rawColor;
     const outPath = path.join('temp', `_slate_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`);
     tmpFiles.push(outPath);
+
+    console.log('[buildSlate] Building slate:', { duration, bgColor, logo: slate.logo ? 'present' : 'none' });
 
     let imagePath = null;
 
@@ -267,8 +270,19 @@ exports.uploadVideo = catchAsync(async (req, res) => {
 // ── Merge videos by IDs ───────────────────────────────────────────────────────
 exports.mergeByIds = catchAsync(async (req, res) => {
     console.log('[mergeByIds] body:', req.body, '| url:', req.url);
+    console.log('[mergeByIds] files:', req.files ? Object.keys(req.files) : 'none');
     let videoIds = req.body.videoIds;
     if (!videoIds) return res.status(400).json({ error: 'No videoIds provided' });
+
+    // Handle FormData case where videoIds comes as JSON string
+    if (typeof videoIds === 'string') {
+        try {
+            videoIds = JSON.parse(videoIds);
+        } catch (e) {
+            return res.status(400).json({ error: 'Invalid videoIds format' });
+        }
+    }
+
     if (!Array.isArray(videoIds)) videoIds = [videoIds];
     if (videoIds.length < 2) return res.status(400).json({ error: 'Need at least 2 videos to merge' });
 
@@ -277,16 +291,56 @@ exports.mergeByIds = catchAsync(async (req, res) => {
 
     const outputName = (req.body.outputName || `merge_${Date.now()}`).trim();
     let intro = null, outro = null;
-    try {
-        if (req.body.intro) intro = typeof req.body.intro === 'string' ? JSON.parse(req.body.intro) : req.body.intro;
-        if (req.body.outro) outro = typeof req.body.outro === 'string' ? JSON.parse(req.body.outro) : req.body.outro;
-    } catch (e) {
-        return res.status(400).json({ error: 'Invalid intro/outro JSON: ' + e.message });
+
+    // Handle intro data
+    if (req.body.intro) {
+        let introData = req.body.intro;
+        // Handle FormData case where intro comes as JSON string
+        if (typeof introData === 'string') {
+            try {
+                introData = JSON.parse(introData);
+            } catch (e) {
+                return res.status(400).json({ error: 'Invalid intro format' });
+            }
+        }
+
+        intro = {
+            duration: introData.duration || 3,
+            backgroundColor: introData.backgroundColor || '#000000'
+        };
+        // Handle intro image if provided
+        if (req.files?.introImage?.[0]) {
+            console.log('[mergeByIds] Processing introImage:', req.files.introImage[0].path);
+            intro.logo = req.files.introImage[0].path;
+        }
+    }
+
+    // Handle outro data
+    if (req.body.outro) {
+        let outroData = req.body.outro;
+        // Handle FormData case where outro comes as JSON string
+        if (typeof outroData === 'string') {
+            try {
+                outroData = JSON.parse(outroData);
+            } catch (e) {
+                return res.status(400).json({ error: 'Invalid outro format' });
+            }
+        }
+
+        outro = {
+            duration: outroData.duration || 3,
+            backgroundColor: outroData.backgroundColor || '#000000'
+        };
+        // Handle outro image if provided
+        if (req.files?.outroImage?.[0]) {
+            console.log('[mergeByIds] Processing outroImage:', req.files.outroImage[0].path);
+            outro.logo = req.files.outroImage[0].path;
+            console.log('[mergeByIds] Outro image:', outro.logo);
+        }
     }
 
     const tmpFiles = [];
 
-    // Attach uploaded logo files to the slate objects and register for cleanup
     if (req.files?.introLogo?.[0]) {
         if (intro) intro.logo = req.files.introLogo[0].path;
         tmpFiles.push(req.files.introLogo[0].path);
@@ -329,7 +383,7 @@ exports.mergeByIds = catchAsync(async (req, res) => {
         tmpFiles.push(currentFile);
         await runFFmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', listPath, '-c', 'copy', currentFile]);
 
-        // Step 3: Intro / Outro slates (built in temp, never saved to DB)
+        // Step 3: Intro / Outro slates
         if (intro || outro) {
             const { width: vw, height: vh } = await getVideoDimensions(currentFile);
             if (intro) {
@@ -381,7 +435,42 @@ exports.mergeByIds = catchAsync(async (req, res) => {
     }
 });
 
-// ── Apply overlays ────────────────────────────────────────────────────────────
+exports.DeleteVideo = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const videoId = Number(id);
+
+    const regularVideo = await getMediaById(videoId);
+    if (regularVideo) {
+        await deleteMediaById(videoId);
+        return res.status(200).json({ status: 'success', message: 'Video deleted successfully' });
+    }
+
+    const mergedVideo = await getMergedMediaById(videoId);
+    if (mergedVideo) {
+        await deleteMergedMediaById(videoId);
+        return res.status(200).json({ status: 'success', message: 'Video deleted successfully' });
+    }
+
+    return res.status(404).json({ error: 'Video not found' });
+});
+
+exports.EditVideo = catchAsync(async (req, res) => {
+    const { id } = req.params;
+    const { name, tags } = req.body;
+
+    let updatedVideo = await updateMediaById(Number(id), { name, tags });
+    if (!updatedVideo) {
+        updatedVideo = await updateMergedMediaById(Number(id), { name, tags });
+    }
+
+    if (!updatedVideo) {
+        return res.status(404).json({ error: 'Video not found' });
+    }
+
+    res.status(200).json({ status: 'success', data: updatedVideo });
+});
+
+// Apply overlays
 exports.applyOverlay = catchAsync(async (req, res) => {
     const video = await getMediaById(parseInt(req.params.id, 10));
     if (!video) return res.status(404).json({ error: 'Video not found' });
@@ -438,7 +527,7 @@ exports.applyOverlay = catchAsync(async (req, res) => {
     res.status(201).json({ status: 'success', data: newEntry });
 });
 
-// ── Apply intro / outro slates ────────────────────────────────────────────────
+// Apply intro / outro slates
 exports.applySlates = catchAsync(async (req, res) => {
     const video = await getMediaById(parseInt(req.params.id, 10));
     if (!video) return res.status(404).json({ error: 'Video not found' });
@@ -450,6 +539,9 @@ exports.applySlates = catchAsync(async (req, res) => {
     try {
         if (req.body.intro) intro = typeof req.body.intro === 'string' ? JSON.parse(req.body.intro) : req.body.intro;
         if (req.body.outro) outro = typeof req.body.outro === 'string' ? JSON.parse(req.body.outro) : req.body.outro;
+        // Handle images if present (for applySlates, images come as introLogo/outroLogo)
+        if (req.files?.introLogo?.[0] && intro) intro.logo = req.files.introLogo[0].path;
+        if (req.files?.outroLogo?.[0] && outro) outro.logo = req.files.outroLogo[0].path;
     } catch (e) {
         return res.status(400).json({ error: 'Invalid intro/outro JSON: ' + e.message });
     }
@@ -497,6 +589,103 @@ exports.applySlates = catchAsync(async (req, res) => {
         res.status(201).json({ status: 'success', data: newEntry });
 
     } finally {
+        cleanupFiles(tmpFiles);
+    }
+});
+
+// Merge uploaded videos
+exports.mergeUploadedVideos = catchAsync(async (req, res) => {
+    const files = req.files;
+
+    // Only attach user_id when genuinely logged in to satisfy the FK constraint
+    const userId = req.body.user_id && req.body.user_id !== 'null'
+        ? parseInt(req.body.user_id, 10)
+        : null;
+
+    if (!files || files.length < 2) {
+        return res.status(400).json({ error: 'At least 2 video files are required' });
+    }
+
+    // Every file created during processing lives here and is wiped in finally
+    const tmpFiles = [];
+
+    try {
+        // Step 1: Move multer temp files into temp/ (never uploads/)
+        //         so they are invisible to the library and cleaned up below.
+        const sourcePaths = [];
+        for (const file of files) {
+            const dest = path.join(
+                'temp',
+                `_upload_${Date.now()}_${Math.random().toString(36).slice(2)}${path.extname(file.originalname)}`
+            );
+            fs.renameSync(file.path, dest);
+            tmpFiles.push(dest);
+            sourcePaths.push(dest);
+        }
+
+        // Step 2: Normalize each clip (uniform codec / fps / sample-rate)
+        const normalised = [];
+        for (const src of sourcePaths) {
+            const norm = path.join('temp', `_norm_${Date.now()}_${Math.random().toString(36).slice(2)}.mp4`);
+            tmpFiles.push(norm);
+            await runFFmpeg([
+                '-y', '-i', src,
+                '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+                '-c:a', 'aac', '-ar', '44100', '-ac', '2',
+                '-r', '30', '-fps_mode', 'cfr',
+                '-avoid_negative_ts', 'make_zero',
+                '-movflags', '+faststart',
+                norm,
+            ]);
+            normalised.push(norm);
+        }
+
+        // Step 3: Concat normalised clips
+        const listPath = path.join('temp', `_upload_list_${Date.now()}.txt`);
+        tmpFiles.push(listPath);
+        fs.writeFileSync(listPath, normalised.map(p => `file '${path.resolve(p)}'`).join('\n'));
+
+        const concatPath = path.join('temp', `_upload_concat_${Date.now()}.mp4`);
+        tmpFiles.push(concatPath);
+        await runFFmpeg([
+            '-y', '-f', 'concat', '-safe', '0', '-i', listPath,
+            '-c', 'copy',
+            concatPath,
+        ]);
+
+        // Step 4: Write final file to outputs/
+        const outputName = `merge_${Date.now()}.mp4`;
+        const outputPath = path.join('outputs', outputName);
+        fs.copyFileSync(concatPath, outputPath);
+
+        let duration = 0;
+        try { duration = await getVideoDuration(outputPath); } catch (_) { }
+
+        // Step 5: Save ONLY the merged result - no insertMedia calls for source clips
+        const mergedEntry = await insertMergedMedia({
+            name: outputName,
+            path: outputPath,
+            duration,
+            format: 'mp4',
+            size: fs.statSync(outputPath).size,
+            tags: [],
+            uploadedAt: new Date().toISOString(),
+            user_id: userId,
+        });
+
+        generateThumbnail(
+            outputPath,
+            path.join('thumbnails', outputName.replace(/\.[^/.]+$/, '') + '.jpg'),
+        ).catch(() => { });
+
+        res.status(201).json({
+            status: 'success',
+            data: mergedEntry,
+            downloadUrl: `http://localhost:3000/${outputPath}`,
+        });
+
+    } finally {
+        // Wipes source clips, normalised clips, concat list - everything in temp/
         cleanupFiles(tmpFiles);
     }
 });

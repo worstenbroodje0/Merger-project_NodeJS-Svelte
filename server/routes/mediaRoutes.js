@@ -26,8 +26,16 @@ router.get('/regular', controller.getRegularMedia);
 router.post('/upload', upload.single('video'), controller.uploadVideo);
 router.post('/merge', upload.fields([
     { name: 'introLogo', maxCount: 1 },
-    { name: 'outroLogo', maxCount: 1 }
+    { name: 'outroLogo', maxCount: 1 },
+    { name: 'introImage', maxCount: 1 },
+    { name: 'outroImage', maxCount: 1 },
+    { name: 'overlayImage', maxCount: 1 }
 ]), controller.mergeByIds);
+
+router.post('/merge-upload', upload.array('videos', 10), controller.mergeUploadedVideos);
+
+router.patch('/:id', controller.EditVideo);
+router.delete('/:id', controller.DeleteVideo);
 
 // Param routes last
 router.get('/:id', controller.getMedia);
