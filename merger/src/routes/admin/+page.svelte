@@ -15,6 +15,7 @@
 	let userSearch = $state('');
 	let videoSearch = $state('');
 	let videoTagFilter = $state('');
+	let videoMergeFilter = $state('');
 	let selectedRoleFilter = $state('');
 	let notification = $state({ message: '', type: 'info', visible: false });
 	let notificationRef;
@@ -52,21 +53,37 @@
 		videos.filter((v) => {
 			const nameMatch = !videoSearch || v.name?.toLowerCase().includes(videoSearch.toLowerCase());
 			let tagMatch = true;
-			if (videoTagFilter.trim()) {
+			if (videoTagFilter) {
 				if (!Array.isArray(v.tags) || !v.tags.length) {
 					tagMatch = false;
 				} else {
-					tagMatch = v.tags.some((tag) =>
-						tag.toLowerCase().includes(videoTagFilter.toLowerCase().trim())
-					);
+					tagMatch = v.tags.includes(videoTagFilter);
 				}
 			}
-			return nameMatch && tagMatch;
+			let mergeMatch = true;
+			if (videoMergeFilter) {
+				mergeMatch = videoMergeFilter === 'merged' ? v.merged : !v.merged;
+			}
+			return nameMatch && tagMatch && mergeMatch;
 		})
 	);
 
 	let regularVideos = $derived(videos.filter((v) => !v.merged));
 	let mergedVideos = $derived(videos.filter((v) => v.merged));
+	let availableTags = $state([]);
+
+	// Update availableTags when videos change
+	$effect(() => {
+		const tagSet = new Set();
+		if (videos && videos.length > 0) {
+			videos.forEach((video) => {
+				if (video.tags && Array.isArray(video.tags)) {
+					video.tags.forEach((tag) => tagSet.add(tag));
+				}
+			});
+		}
+		availableTags = Array.from(tagSet).sort();
+	});
 
 	async function load() {
 		if (!(await auth.isAdmin()) && !(await auth.isEditor())) {
@@ -131,6 +148,40 @@
 	function closeVideoPlayer() {
 		videoPlayer = { open: false, video: null };
 	}
+
+	async function downloadVideo(video) {
+		try {
+			// Get the video URL
+			const videoUrl = video.b64
+				? `data:video/mp4;base64,${video.b64}`
+				: `http://localhost:3000/${video.path.replace(/\\/g, '/')}`;
+
+			// Always fetch as blob for consistent download behavior
+			const response = await fetch(videoUrl);
+			const blob = await response.blob();
+			const blobUrl = window.URL.createObjectURL(blob);
+
+			// Create download link
+			const link = document.createElement('a');
+			link.href = blobUrl;
+			link.download = video.name || 'video.mp4';
+
+			// Trigger download
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+
+			// Clean up object URL
+			window.URL.revokeObjectURL(blobUrl);
+		} catch (err) {
+			console.error('Download failed:', err);
+			// Fallback: try opening in new tab if blob download fails
+			const fallbackUrl = video.b64
+				? `data:video/mp4;base64,${video.b64}`
+				: `http://localhost:3000/${video.path.replace(/\\/g, '/')}`;
+			window.open(fallbackUrl, '_blank');
+		}
+	}
 	function closeModal() {
 		modal = { open: false, type: '', target: null };
 	}
@@ -180,6 +231,12 @@
 		confirm = { open: true, type, id, label, merged };
 	}
 
+	function getUserName(userId) {
+		if (!userId) return 'Unknown';
+		const user = users.find((u) => u.id === userId);
+		return user ? user.name : 'Unknown';
+	}
+
 	async function doDelete() {
 		const { type, id } = confirm;
 		confirm = { open: false, type: '', id: null, label: '', merged: false };
@@ -204,7 +261,8 @@
 
 	function handleFiles(e) {
 		const files = Array.from(e.target?.files || e.dataTransfer?.files || []);
-		pendingFiles = [...pendingFiles, ...files];
+		// Only keep the first file (single file upload)
+		pendingFiles = files.length > 0 ? [files[0]] : [];
 		if (e.target) e.target.value = '';
 	}
 
@@ -408,17 +466,34 @@
 			{/if}
 
 			{#if activeTab === 'videos'}
-				<input
-					type="text"
-					placeholder="Filter by tag…"
+				<select
 					bind:value={videoTagFilter}
 					style="
-						width:180px; height:32px; border-radius:6px; padding:0 12px;
+						width:180px; height:32px; border-radius:6px; padding:0 8px;
 						font-size:13px; outline:none;
 						background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870;
+						cursor:pointer;
 					"
-				/>
-				{#if videoTagFilter.trim()}
+				>
+					<option value="">All tags</option>
+					{#each availableTags as tag}
+						<option value={tag}>{tag}</option>
+					{/each}
+				</select>
+				<select
+					bind:value={videoMergeFilter}
+					style="
+						width:140px; height:32px; border-radius:6px; padding:0 8px;
+						font-size:13px; outline:none;
+						background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870;
+						cursor:pointer;
+					"
+				>
+					<option value="">All videos</option>
+					<option value="merged">Merged</option>
+					<option value="unmerged">Not merged</option>
+				</select>
+				{#if videoTagFilter}
 					<button
 						onclick={() => (videoTagFilter = '')}
 						style="padding:4px 12px; font-size:12px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#a0b040; cursor:pointer;"
@@ -594,7 +669,7 @@
 				<div
 					style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:12px;"
 				>
-					{#each filteredVideos as v (v.id)}
+					{#each filteredVideos as v, i (i)}
 						<div
 							style="background:#2a2e1a; border:0.5px solid #4a5520; border-radius:8px; overflow:hidden; transition:border-color 0.15s;"
 							onmouseenter={(e) => (e.currentTarget.style.borderColor = '#8a9a30')}
@@ -641,6 +716,11 @@
 								>
 									{v.name}
 								</p>
+								{#if v.merged && v.user_id}
+									<p style="font-size:10px; color:#7a8840; margin-top:1px; font-weight:500;">
+										User: {getUserName(v.user_id)}
+									</p>
+								{/if}
 								<p style="font-size:11px; color:#5a6828; margin-top:2px;">{fmtSize(v.size)}</p>
 								{#if Array.isArray(v.tags) && v.tags.length}
 									<div style="display:flex; flex-wrap:wrap; gap:3px; margin-top:5px;">
@@ -942,12 +1022,29 @@
 				style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:0.5px solid #2a3010;"
 			>
 				<h3 style="font-size:14px; font-weight:500; color:#c8d870;">{videoPlayer.video.name}</h3>
-				<button
-					onclick={closeVideoPlayer}
-					style="background:none; border:none; color:#5a6828; cursor:pointer; font-size:20px; line-height:1;"
-					onmouseenter={(e) => (e.target.style.color = '#c8d870')}
-					onmouseleave={(e) => (e.target.style.color = '#5a6828')}>×</button
-				>
+				<div style="display:flex; gap:8px; align-items:center;">
+					<button
+						onclick={() => downloadVideo(videoPlayer.video)}
+						style="background:#3a5520; border:0.5px solid #5a7a2e; color:#c8d870; cursor:pointer; font-size:12px; padding:4px 8px; border-radius:4px; font-weight:500; transition:all 0.15s;"
+						onmouseenter={(e) => {
+							e.target.style.background = '#4a6828';
+							e.target.style.borderColor = '#6a8a3e';
+						}}
+						onmouseleave={(e) => {
+							e.target.style.background = '#3a5520';
+							e.target.style.borderColor = '#5a7a2e';
+						}}
+						title="Download video"
+					>
+						Download
+					</button>
+					<button
+						onclick={closeVideoPlayer}
+						style="background:none; border:none; color:#5a6828; cursor:pointer; font-size:20px; line-height:1;"
+						onmouseenter={(e) => (e.target.style.color = '#c8d870')}
+						onmouseleave={(e) => (e.target.style.color = '#5a6828')}>×</button
+					>
+				</div>
 			</div>
 			<div style="aspect-ratio:16/9;">
 				<!-- svelte-ignore a11y_media_has_caption -->

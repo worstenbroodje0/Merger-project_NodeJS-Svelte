@@ -80,9 +80,14 @@
 		mergeLoading = true;
 		mergeError = '';
 		const {
-			showOverlayOptions, overlayType,
-			introBackgroundColor, introImage, introDuration,
-			outroBackgroundColor, outroImage, outroDuration
+			showOverlayOptions,
+			overlayType,
+			introBackgroundColor,
+			introImage,
+			introDuration,
+			outroBackgroundColor,
+			outroImage,
+			outroDuration
 		} = mergePanelRef?.getOverlayConfig() ?? {};
 		try {
 			const allEmbedded = selectedIds.every((id) => getVideo(id)?.b64);
@@ -113,14 +118,23 @@
 				let response;
 				if (hasOverlayImages) {
 					const formData = new FormData();
-					formData.append('videoIds', JSON.stringify(selectedIds.map((uid) => getVideo(uid)?._id ?? getVideo(uid)?.id)));
+					formData.append(
+						'videoIds',
+						JSON.stringify(selectedIds.map((uid) => getVideo(uid)?._id ?? getVideo(uid)?.id))
+					);
 					formData.append('user_id', $auth.user?.id || null);
 					if (overlayType === 'intro' || overlayType === 'both') {
-						formData.append('intro', JSON.stringify({ backgroundColor: introBackgroundColor, duration: introDuration }));
+						formData.append(
+							'intro',
+							JSON.stringify({ backgroundColor: introBackgroundColor, duration: introDuration })
+						);
 						if (introImage) formData.append('introImage', introImage);
 					}
 					if (overlayType === 'outro' || overlayType === 'both') {
-						formData.append('outro', JSON.stringify({ backgroundColor: outroBackgroundColor, duration: outroDuration }));
+						formData.append(
+							'outro',
+							JSON.stringify({ backgroundColor: outroBackgroundColor, duration: outroDuration })
+						);
 						if (outroImage) formData.append('outroImage', outroImage);
 					}
 					response = await fetch(`${BASE}/media/merge`, { method: 'POST', body: formData });
@@ -130,8 +144,16 @@
 						user_id: $auth.user?.id || null
 					};
 					if (showOverlayOptions) {
-						if (overlayType === 'intro' || overlayType === 'both') requestBody.intro = { backgroundColor: introBackgroundColor, duration: introDuration };
-						if (overlayType === 'outro' || overlayType === 'both') requestBody.outro = { backgroundColor: outroBackgroundColor, duration: outroDuration };
+						if (overlayType === 'intro' || overlayType === 'both')
+							requestBody.intro = {
+								backgroundColor: introBackgroundColor,
+								duration: introDuration
+							};
+						if (overlayType === 'outro' || overlayType === 'both')
+							requestBody.outro = {
+								backgroundColor: outroBackgroundColor,
+								duration: outroDuration
+							};
 					}
 					response = await fetch(`${BASE}/media/merge`, {
 						method: 'POST',
@@ -141,7 +163,8 @@
 				}
 				if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 				const data = await response.json();
-				if (data.status !== 'success' && data.success !== true) throw new Error(data.message || data.error || 'Merge failed');
+				if (data.status !== 'success' && data.success !== true)
+					throw new Error(data.message || data.error || 'Merge failed');
 				mergedUrl = data.downloadUrl || `http://localhost:3000/${data.data?.path}`;
 				mergedName = data.data?.name || 'merged.mp4';
 			}
@@ -170,7 +193,10 @@
 			const formData = new FormData();
 			uploadedFiles.forEach((file) => formData.append('videos', file));
 			formData.append('user_id', $auth.user?.id || null);
-			const response = await fetch(`${BASE}/media/merge-upload`, { method: 'POST', body: formData });
+			const response = await fetch(`${BASE}/media/merge-upload`, {
+				method: 'POST',
+				body: formData
+			});
 			if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
 			const data = await response.json();
 			const params = new URLSearchParams({
@@ -212,7 +238,10 @@
 			const videoId = video._id || video.id;
 			const tags =
 				typeof video.tags === 'string'
-					? video.tags.split(',').map((tag) => tag.trim()).filter((tag) => tag)
+					? video.tags
+							.split(',')
+							.map((tag) => tag.trim())
+							.filter((tag) => tag)
 					: video.tags;
 			const res = await fetch(`${BASE}/media/${videoId}`, {
 				method: 'PUT',
@@ -236,9 +265,11 @@
 </script>
 
 <main class="min-h-screen" style="background:#1e1e1e;">
-
 	<!-- Search bar + tab switcher row -->
-	<div class="flex items-center gap-3 px-5 py-3" style="border-bottom:0.5px solid #3a4018;">
+	<div
+		class="flex items-center gap-3 px-5 py-3"
+		style="position:sticky; top:0; z-index:30; border-bottom:0.5px solid #3a4018; background:#1e1e1e;"
+	>
 		<input
 			type="text"
 			placeholder="Search…"
@@ -249,7 +280,11 @@
 			<button
 				onclick={() => (activeTab = 'upload')}
 				class="rounded-md px-5 py-1.5 text-sm font-medium transition-colors"
-				style="background:{activeTab === 'upload' ? '#4a5520' : 'transparent'}; border:0.5px solid #4a5520; color:{activeTab === 'upload' ? '#d6e08a' : '#7a8840'}; cursor:pointer;"
+				style="background:{activeTab === 'upload'
+					? '#4a5520'
+					: 'transparent'}; border:0.5px solid #4a5520; color:{activeTab === 'upload'
+					? '#d6e08a'
+					: '#7a8840'}; cursor:pointer;"
 			>
 				Upload
 			</button>
@@ -257,7 +292,11 @@
 				<button
 					onclick={() => (activeTab = 'library')}
 					class="rounded-md px-5 py-1.5 text-sm font-medium transition-colors"
-					style="background:{activeTab === 'library' ? '#4a5520' : 'transparent'}; border:0.5px solid #4a5520; color:{activeTab === 'library' ? '#d6e08a' : '#7a8840'}; cursor:pointer;"
+					style="background:{activeTab === 'library'
+						? '#4a5520'
+						: 'transparent'}; border:0.5px solid #4a5520; color:{activeTab === 'library'
+						? '#d6e08a'
+						: '#7a8840'}; cursor:pointer;"
 				>
 					Library
 				</button>
@@ -267,12 +306,10 @@
 
 	<!-- Content area: two-column when library tab active -->
 	<div class="flex" style="min-height:calc(100vh - 90px);">
-
 		<!-- Left: main content -->
 		<div class="min-w-0 flex-1 p-5">
 			{#if activeTab === 'upload'}
 				<UploadTab bind:uploadedFiles {uploadLoading} {uploadError} onMerge={uploadAndMerge} />
-
 			{:else if activeTab === 'library'}
 				{#if loading}
 					<div class="py-16 text-center">
@@ -281,7 +318,11 @@
 				{:else if error}
 					<div class="py-16 text-center">
 						<p class="mb-4 text-sm" style="color:#c85050;">Error: {error}</p>
-						<button onclick={loadVideos} class="rounded-md px-4 py-2 text-sm" style="background:#6b7a2e; border:none; color:#fff; cursor:pointer;">
+						<button
+							onclick={loadVideos}
+							class="rounded-md px-4 py-2 text-sm"
+							style="background:#6b7a2e; border:none; color:#fff; cursor:pointer;"
+						>
 							Retry
 						</button>
 					</div>
@@ -305,7 +346,9 @@
 
 		<!-- Right: persistent sidebar, always visible in library tab -->
 		{#if activeTab === 'library'}
-			<aside style="width:300px; flex-shrink:0; border-left:0.5px solid #3a4018; background:#222a10;">
+			<aside
+				style="position:sticky; top:42px; width:300px; height:calc(100vh - 42px); flex-shrink:0; border-left:0.5px solid #3a4018; background:#222a10; border-radius:12px 0 0 12px; overflow-y:auto;"
+			>
 				<LibraryMergePanel
 					bind:selectedIds
 					{getVideo}
@@ -316,7 +359,6 @@
 				/>
 			</aside>
 		{/if}
-
 	</div>
 </main>
 
