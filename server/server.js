@@ -23,6 +23,8 @@ app.get('/', (req, res) => {
 
 app.use('/api/media', mediaRoutes);
 app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+app.use('/api/roles', require('./routes/rolesRoutes'));
 app.use('/api/mail', require('./routes/mailRoutes'));
 
 app.listen(port, () => {
