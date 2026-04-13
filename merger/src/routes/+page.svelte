@@ -2,9 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.js';
 	import Notification from '$lib/components/Notification.svelte';
-	import UploadTab from '$lib/components/UploadTab.svelte';
-	import LibraryMergePanel from '$lib/components/LibraryMergePanel.svelte';
-	import LibraryVideoGrid from '$lib/components/LibraryVideoGrid.svelte';
+	import UploadTab from '$lib/components/homepage/UploadTab.svelte';
+	import LibraryMergePanel from '$lib/components/homepage/LibraryMergePanel.svelte';
+	import LibraryVideoGrid from '$lib/components/homepage/LibraryVideoGrid.svelte';
 
 	const BASE = 'http://localhost:3000/api';
 
@@ -14,6 +14,8 @@
 	let selectedIds = $state(/** @type {string[]} */ ([]));
 	let mergeLoading = $state(false);
 	let mergeError = $state('');
+	let mergeProgress = $state(0);
+	let mergeStatus = $state('');
 	let activeTab = $state('upload');
 	let uploadedFiles = $state(/** @type {File[]} */ ([]));
 	let uploadLoading = $state(false);
@@ -77,22 +79,36 @@
 			mergeError = 'Please select at least 2 videos to merge';
 			return;
 		}
+		// Reset progress state
+		mergeProgress = 0;
+		mergeStatus = 'Starting merge...';
 		mergeLoading = true;
 		mergeError = '';
-		const {
-			showOverlayOptions,
-			overlayType,
-			introBackgroundColor,
-			introImage,
-			introDuration,
-			outroBackgroundColor,
-			outroImage,
-			outroDuration
-		} = mergePanelRef?.getOverlayConfig() ?? {};
 		try {
+			// Get overlay config from merge panel
+			const overlayConfig = mergePanelRef?.getOverlayConfig() ?? {};
+			const {
+				showOverlayOptions,
+				overlayType,
+				introBackgroundColor,
+				introImage,
+				introDuration,
+				outroBackgroundColor,
+				outroImage,
+				outroDuration,
+				customName
+			} = overlayConfig;
 			const allEmbedded = selectedIds.every((id) => getVideo(id)?.b64);
 			let mergedUrl, mergedName;
 			if (allEmbedded) {
+				mergeStatus = 'Processing videos...';
+				// Simulate progress during merge
+				const progressInterval = setInterval(() => {
+					if (mergeProgress < 90) {
+						mergeProgress = Math.min(mergeProgress + Math.random() * 15, 90);
+					}
+				}, 500);
+
 				const response = await fetch(`${BASE}/media/merge-b64`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
@@ -103,6 +119,11 @@
 						})
 					})
 				});
+
+				clearInterval(progressInterval);
+				mergeProgress = 95;
+				mergeStatus = 'Finalizing merge...';
+
 				if (response.ok) {
 					const data = await response.json();
 					mergedUrl = data.downloadUrl;
@@ -111,10 +132,18 @@
 					throw new Error('Server merge failed');
 				}
 			} else {
+				mergeStatus = 'Processing videos...';
+				// Simulate progress during merge
+				const progressInterval = setInterval(() => {
+					if (mergeProgress < 90) {
+						mergeProgress = Math.min(mergeProgress + Math.random() * 15, 90);
+					}
+				}, 500);
+
 				const hasOverlayImages =
 					(overlayType === 'intro' && introImage) ||
 					(overlayType === 'outro' && outroImage) ||
-					(overlayType === 'both' && (introImage || outroImage));
+					(overlayType === 'both' && introImage && outroImage);
 				let response;
 				if (hasOverlayImages) {
 					const formData = new FormData();
@@ -161,13 +190,26 @@
 						body: JSON.stringify(requestBody)
 					});
 				}
+
+				clearInterval(progressInterval);
+				mergeProgress = 95;
+				mergeStatus = 'Finalizing merge...';
+
 				if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 				const data = await response.json();
 				if (data.status !== 'success' && data.success !== true)
 					throw new Error(data.message || data.error || 'Merge failed');
 				mergedUrl = data.downloadUrl || `http://localhost:3000/${data.data?.path}`;
-				mergedName = data.data?.name || 'merged.mp4';
+				// Get custom name from merge panel
+				const overlayConfig = mergePanelRef?.getOverlayConfig() ?? {};
+				const customName = overlayConfig?.customName?.trim();
+				mergedName = customName || data.data?.name || 'merged.mp4';
 			}
+
+			// Complete progress before redirect
+			mergeProgress = 100;
+			mergeStatus = 'Merge complete!';
+			await new Promise((resolve) => setTimeout(resolve, 500)); // Brief pause to show 100%
 			const params = new URLSearchParams({
 				url: mergedUrl ?? '',
 				name: mergedName ?? 'merged.mp4',
@@ -347,13 +389,15 @@
 		<!-- Right: persistent sidebar, always visible in library tab -->
 		{#if activeTab === 'library'}
 			<aside
-				style="position:sticky; top:42px; width:300px; height:calc(100vh - 42px); flex-shrink:0; border-left:0.5px solid #3a4018; background:#222a10; border-radius:12px 0 0 12px; overflow-y:auto;"
+				style="position:sticky; top:42px; width:300px;  min-height:400px; height: 650px; flex-shrink:0; border-left:0.5px solid #3a4018; background:#222a10; border-radius:12px 0 0 12px; overflow-y:auto;"
 			>
 				<LibraryMergePanel
 					bind:selectedIds
 					{getVideo}
 					{mergeLoading}
 					{mergeError}
+					{mergeProgress}
+					{mergeStatus}
 					onMerge={mergeVideos}
 					bind:this={mergePanelRef}
 				/>

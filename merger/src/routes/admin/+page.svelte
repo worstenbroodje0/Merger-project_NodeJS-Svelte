@@ -5,6 +5,9 @@
 	import { onMount } from 'svelte';
 	import { auth } from '$lib/stores/auth.js';
 	import Notification from '$lib/components/Notification.svelte';
+	import UsersPanel from '$lib/components/adminpage/UsersPanel.svelte';
+	import VideosPanel from '$lib/components/adminpage/VideosPanel.svelte';
+	import UploadPanel from '$lib/components/adminpage/UploadPanel.svelte';
 
 	const BASE = 'http://localhost:3000/api';
 
@@ -34,6 +37,7 @@
 	let uploading = $state(false);
 	let uploadProgress = $state(0);
 	let isDragging = $state(false);
+	let uploadKey = $state(0);
 
 	let filteredUsers = $derived(
 		users.filter((u) => {
@@ -285,7 +289,13 @@
 			uploadProgress = 100;
 			if (res.ok) {
 				showNotification('Video uploaded successfully!', 'success');
+				// Force complete refresh by switching tabs
+				const currentTab = activeTab;
+				activeTab = 'users'; // Switch away
 				pendingFiles = [];
+				uploadKey++; // Force component re-render
+				await new Promise((resolve) => setTimeout(resolve, 50));
+				activeTab = currentTab; // Switch back
 				await load();
 			} else {
 				showNotification('Upload failed', 'error');
@@ -299,19 +309,6 @@
 				uploadProgress = 0;
 			}, 600);
 		}
-	}
-
-	function onDragOver(e) {
-		e.preventDefault();
-		isDragging = true;
-	}
-	function onDragLeave() {
-		isDragging = false;
-	}
-	function onDrop(e) {
-		e.preventDefault();
-		isDragging = false;
-		handleFiles(e);
 	}
 
 	let showSuccess, showError, showWarning, showInfo, showToast, showNotification;
@@ -337,28 +334,6 @@
 		if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
 		if (b >= 1e6) return (b / 1e6).toFixed(1) + ' MB';
 		return Math.round(b / 1024) + ' KB';
-	}
-
-	function initials(name) {
-		return (name || 'U')
-			.split(' ')
-			.map((w) => w[0])
-			.join('')
-			.slice(0, 2)
-			.toUpperCase();
-	}
-
-	function roleName(u) {
-		return u.role?.name ?? '—';
-	}
-
-	function roleBadgeStyle(name) {
-		const map = {
-			admin: 'background:#3a4018; color:#c8d870;',
-			editor: 'background:#3a3010; color:#c8b040;',
-			user: 'background:#1e2a1e; color:#80b080;'
-		};
-		return map[name?.toLowerCase()] ?? 'background:#2a2e1a; color:#7a8840;';
 	}
 </script>
 
@@ -505,370 +480,43 @@
 
 		<!-- ── USERS TAB ── -->
 		{#if activeTab === 'users'}
-			<div
-				style="background:#2a2e1a; border:0.5px solid #4a5520; border-radius:8px; overflow:hidden;"
-			>
-				<table style="width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed;">
-					<colgroup>
-						<col style="width:25%" />
-						<col style="width:28%" />
-						<col style="width:15%" />
-						<col style="width:18%" />
-						<col style="width:14%" />
-					</colgroup>
-					<thead>
-						<tr style="border-bottom:0.5px solid #3a4018; background:#1e2210;">
-							{#each ['Name', 'Email', 'Role', 'Joined', 'Actions'] as h}
-								<th
-									style="padding:10px 14px; text-align:left; font-size:11px; font-weight:500; color:#5a6828; text-transform:uppercase; letter-spacing:0.05em;"
-									>{h}</th
-								>
-							{/each}
-						</tr>
-					</thead>
-					<tbody>
-						{#if loading}
-							{#each Array(4) as _}
-								<tr style="border-bottom:0.5px solid #2a3018;">
-									{#each Array(5) as _}
-										<td style="padding:12px 14px;"
-											><div
-												style="height:12px; background:#2a3010; border-radius:4px; animation:pulse 1.5s infinite;"
-											></div></td
-										>
-									{/each}
-								</tr>
-							{/each}
-						{:else if !filteredUsers.length}
-							<tr>
-								<td
-									colspan="5"
-									style="padding:40px; text-align:center; font-size:13px; color:#5a6828;"
-									>No users found</td
-								>
-							</tr>
-						{:else}
-							{#each filteredUsers as u (u.id)}
-								<tr
-									style="border-bottom:0.5px solid #2a3018;"
-									onmouseenter={(e) => (e.currentTarget.style.background = '#252d12')}
-									onmouseleave={(e) => (e.currentTarget.style.background = 'transparent')}
-								>
-									<td style="padding:10px 14px;">
-										<div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
-											<div
-												style="width:26px; height:26px; border-radius:50%; background:#3a4018; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:500; color:#c8d870; flex-shrink:0;"
-											>
-												{initials(u.name)}
-											</div>
-											<span
-												style="font-size:13px; font-weight:500; color:#c8d870; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-												>{u.name}</span
-											>
-										</div>
-									</td>
-									<td
-										style="padding:10px 14px; font-size:12px; color:#7a8840; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-										>{u.email}</td
-									>
-									<td style="padding:10px 14px;">
-										<span
-											style="display:inline-flex; align-items:center; border-radius:20px; padding:2px 8px; font-size:11px; font-weight:500; {roleBadgeStyle(
-												roleName(u)
-											)}"
-										>
-											{roleName(u)}
-										</span>
-									</td>
-									<td style="padding:10px 14px; font-size:12px; color:#5a6828;">
-										{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
-									</td>
-									<td style="padding:10px 14px;">
-										<div style="display:flex; gap:6px;">
-											<button
-												onclick={() => openEditUser(u)}
-												style="width:28px; height:28px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#7a8840; cursor:pointer; display:flex; align-items:center; justify-content:center;"
-												onmouseenter={(e) => {
-													e.currentTarget.style.borderColor = '#8a9a30';
-													e.currentTarget.style.color = '#c8d870';
-												}}
-												onmouseleave={(e) => {
-													e.currentTarget.style.borderColor = '#4a5520';
-													e.currentTarget.style.color = '#7a8840';
-												}}
-												title="Edit"
-											>
-												<svg
-													style="width:13px; height:13px;"
-													viewBox="0 0 20 20"
-													fill="currentColor"
-												>
-													<path
-														d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"
-													/>
-												</svg>
-											</button>
-											<button
-												onclick={() => askDelete('user', u.id, u.name)}
-												style="width:28px; height:28px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#7a8840; cursor:pointer; display:flex; align-items:center; justify-content:center;"
-												onmouseenter={(e) => {
-													e.currentTarget.style.borderColor = '#c85050';
-													e.currentTarget.style.color = '#c85050';
-												}}
-												onmouseleave={(e) => {
-													e.currentTarget.style.borderColor = '#4a5520';
-													e.currentTarget.style.color = '#7a8840';
-												}}
-												title="Delete"
-											>
-												<svg
-													style="width:13px; height:13px;"
-													viewBox="0 0 20 20"
-													fill="currentColor"
-												>
-													<path
-														fill-rule="evenodd"
-														d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-														clip-rule="evenodd"
-													/>
-												</svg>
-											</button>
-										</div>
-									</td>
-								</tr>
-							{/each}
-						{/if}
-					</tbody>
-				</table>
-			</div>
+			<UsersPanel
+				{users}
+				{filteredUsers}
+				{userSearch}
+				{selectedRoleFilter}
+				{roles}
+				{loading}
+				{openEditUser}
+				{askDelete}
+			/>
 		{/if}
 
 		<!-- ── VIDEOS TAB ── -->
 		{#if activeTab === 'videos'}
-			{#if loading}
-				<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
-					{#each Array(6) as _}
-						<div
-							style="background:#2a2e1a; border:0.5px solid #4a5520; border-radius:8px; overflow:hidden;"
-						>
-							<div style="aspect-ratio:16/9; background:#1e2210;"></div>
-							<div style="padding:10px;">
-								<div
-									style="height:10px; background:#2a3010; border-radius:4px; margin-bottom:6px;"
-								></div>
-								<div style="height:10px; width:60%; background:#2a3010; border-radius:4px;"></div>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{:else if !filteredVideos.length}
-				<div style="padding:60px; text-align:center; font-size:13px; color:#5a6828;">
-					No videos found
-				</div>
-			{:else}
-				<div
-					style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:12px;"
-				>
-					{#each filteredVideos as v, i (i)}
-						<div
-							style="background:#2a2e1a; border:0.5px solid #4a5520; border-radius:8px; overflow:hidden; transition:border-color 0.15s;"
-							onmouseenter={(e) => (e.currentTarget.style.borderColor = '#8a9a30')}
-							onmouseleave={(e) => (e.currentTarget.style.borderColor = '#4a5520')}
-						>
-							<div
-								style="position:relative; aspect-ratio:16/9; background:#111; display:flex; align-items:center; justify-content:center;"
-							>
-								<img
-									src="http://localhost:3000/thumbnails/{v.name.replace(/\.[^/.]+$/, '')}.jpg"
-									alt={v.name}
-									style="width:100%; height:100%; object-fit:cover;"
-									onerror={(e) => {
-										e.currentTarget.style.display = 'none';
-									}}
-								/>
-								<svg
-									style="position:absolute; width:32px; height:32px; color:#3a4018;"
-									viewBox="0 0 24 24"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1"
-								>
-									<rect x="2" y="3" width="20" height="14" rx="2" />
-									<path d="M10.5 10l3-1.8v3.6z" fill="currentColor" stroke="none" />
-								</svg>
-								<span
-									style="position:absolute; bottom:5px; right:5px; background:rgba(0,0,0,0.7); color:#fff; font-size:10px; padding:2px 5px; border-radius:3px;"
-								>
-									{fmtDuration(v.duration)}
-								</span>
-								{#if v.merged}
-									<span
-										style="position:absolute; top:5px; left:5px; background:#3a5520; color:#a0d070; font-size:10px; padding:2px 6px; border-radius:3px; font-weight:500;"
-										>merged</span
-									>
-								{/if}
-							</div>
-
-							<div style="padding:8px 10px 4px;">
-								<p
-									style="font-size:12px; font-weight:500; color:#c8d870; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-									title={v.name}
-								>
-									{v.name}
-								</p>
-								{#if v.merged && v.user_id}
-									<p style="font-size:10px; color:#7a8840; margin-top:1px; font-weight:500;">
-										User: {getUserName(v.user_id)}
-									</p>
-								{/if}
-								<p style="font-size:11px; color:#5a6828; margin-top:2px;">{fmtSize(v.size)}</p>
-								{#if Array.isArray(v.tags) && v.tags.length}
-									<div style="display:flex; flex-wrap:wrap; gap:3px; margin-top:5px;">
-										{#each v.tags.slice(0, 3) as tag}
-											<span
-												style="background:#3a4018; color:#a0b040; font-size:10px; padding:1px 6px; border-radius:3px;"
-												>{tag}</span
-											>
-										{/each}
-									</div>
-								{/if}
-							</div>
-
-							<div style="display:flex; gap:5px; padding:6px 10px 10px;">
-								<button
-									onclick={() => playVideo(v)}
-									style="flex:1; padding:5px 0; font-size:11px; font-weight:500; border-radius:5px; border:0.5px solid #5a7a2e; background:#3a5520; color:#c8e870; cursor:pointer; transition:background 0.15s;"
-									onmouseenter={(e) => (e.currentTarget.style.background = '#4a6828')}
-									onmouseleave={(e) => (e.currentTarget.style.background = '#3a5520')}>Play</button
-								>
-								<button
-									onclick={() => openEditVideo(v)}
-									style="flex:1; padding:5px 0; font-size:11px; font-weight:500; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#a0b040; cursor:pointer; transition:background 0.15s;"
-									onmouseenter={(e) => (e.currentTarget.style.background = '#2a3010')}
-									onmouseleave={(e) => (e.currentTarget.style.background = '#1e2210')}>Edit</button
-								>
-								<button
-									onclick={() => askDelete('video', v.id, v.name, v.merged)}
-									style="width:28px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#7a8840; cursor:pointer; display:flex; align-items:center; justify-content:center;"
-									onmouseenter={(e) => {
-										e.currentTarget.style.borderColor = '#c85050';
-										e.currentTarget.style.color = '#c85050';
-									}}
-									onmouseleave={(e) => {
-										e.currentTarget.style.borderColor = '#4a5520';
-										e.currentTarget.style.color = '#7a8840';
-									}}
-									title="Delete"
-								>
-									<svg style="width:12px; height:12px;" viewBox="0 0 20 20" fill="currentColor">
-										<path
-											fill-rule="evenodd"
-											d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-											clip-rule="evenodd"
-										/>
-									</svg>
-								</button>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{/if}
+			<VideosPanel
+				{filteredVideos}
+				{loading}
+				{playVideo}
+				{openEditVideo}
+				{askDelete}
+				{getUserName}
+			/>
 		{/if}
 
 		<!-- ── UPLOAD TAB ── -->
 		{#if activeTab === 'upload'}
-			<div
-				onclick={() => document.getElementById('file-input').click()}
-				ondragover={onDragOver}
-				ondragleave={onDragLeave}
-				ondrop={onDrop}
-				style="
-					cursor:pointer; border-radius:10px; padding:60px 20px; text-align:center; transition:border-color 0.15s;
-					border:1.5px dashed {isDragging ? '#8a9a30' : '#4a5520'};
-					background:{isDragging ? '#252d12' : '#1e2210'};
-				"
-			>
-				<svg
-					style="width:40px; height:40px; color:#4a5520; margin:0 auto 12px;"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="1.5"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-					/>
-				</svg>
-				<p style="font-size:14px; font-weight:500; color:#a0b040; margin-bottom:6px;">
-					Upload video's
-				</p>
-				<p style="font-size:12px; color:#5a6828;">MP4, MOV, AVI, MKV — drag & drop or click</p>
-			</div>
-
-			<input
-				id="file-input"
-				type="file"
-				accept="video/*"
-				multiple
-				style="display:none;"
-				onchange={handleFiles}
+			<UploadPanel
+				key={uploadKey}
+				{pendingFiles}
+				{uploading}
+				{uploadProgress}
+				{isDragging}
+				{handleFiles}
+				{removeFile}
+				{uploadFiles}
+				{fmtSize}
 			/>
-
-			{#if pendingFiles.length}
-				<div style="margin-top:12px; display:flex; flex-direction:column; gap:6px;">
-					{#each pendingFiles as f, i}
-						<div
-							style="display:flex; align-items:center; gap:10px; background:#2a2e1a; border:0.5px solid #4a5520; border-radius:6px; padding:10px 14px;"
-						>
-							<span
-								style="font-size:12px; font-weight:500; color:#c8d870; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-								>{f.name}</span
-							>
-							<span style="font-size:11px; color:#5a6828; flex-shrink:0;">{fmtSize(f.size)}</span>
-							<button
-								onclick={() => removeFile(i)}
-								style="background:none; border:none; color:#4a5520; cursor:pointer; font-size:16px; padding:0 2px;"
-								onmouseenter={(e) => (e.target.style.color = '#c85050')}
-								onmouseleave={(e) => (e.target.style.color = '#4a5520')}>×</button
-							>
-						</div>
-					{/each}
-				</div>
-
-				<div style="margin-top:12px;">
-					{#if uploading}
-						<div style="margin-bottom:10px;">
-							<div
-								style="display:flex; justify-content:space-between; font-size:11px; color:#7a8840; margin-bottom:4px;"
-							>
-								<span>Uploading…</span><span>{Math.round(uploadProgress)}%</span>
-							</div>
-							<div style="height:4px; background:#2a3010; border-radius:2px; overflow:hidden;">
-								<div
-									style="height:100%; background:#6b7a2e; border-radius:2px; transition:width 0.3s; width:{uploadProgress}%;"
-								></div>
-							</div>
-						</div>
-					{/if}
-					<button
-						onclick={uploadFiles}
-						disabled={uploading}
-						style="
-							padding:8px 20px; font-size:13px; font-weight:500; border-radius:6px; border:none; cursor:{uploading
-							? 'not-allowed'
-							: 'pointer'};
-							background:{uploading ? '#2a3010' : '#6b7a2e'};
-							color:{uploading ? '#4a5520' : '#fff'};
-						"
-					>
-						{uploading
-							? 'Uploading…'
-							: `Upload ${pendingFiles.length} file${pendingFiles.length !== 1 ? 's' : ''}`}
-					</button>
-				</div>
-			{/if}
 		{/if}
 	</main>
 </div>
