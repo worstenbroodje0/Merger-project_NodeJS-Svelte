@@ -12,7 +12,7 @@ function createAuthStore() {
         if (typeof window !== 'undefined') {
             const token = localStorage.getItem('token');
             const user = localStorage.getItem('user');
-            
+
             if (token && user) {
                 try {
                     const parsedUser = JSON.parse(user);
@@ -53,11 +53,29 @@ function createAuthStore() {
         });
     }
 
+    function isAdmin() {
+        let currentUser = null;
+        subscribe(state => {
+            currentUser = state.user;
+        })();
+        return currentUser?.role?.name === 'admin';
+    }
+
+    function isEditor() {
+        let currentUser = null;
+        subscribe(state => {
+            currentUser = state.user;
+        })();
+        return currentUser?.role?.name === 'editor' || currentUser?.role?.name === 'admin';
+    }
+
     return {
         subscribe,
         initialize,
         login,
         logout,
+        isAdmin,
+        isEditor,
         set
     };
 }

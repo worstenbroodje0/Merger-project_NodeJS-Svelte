@@ -1,5 +1,5 @@
 <script>
-	import { auth } from '../../stores/auth.js';
+	import { auth } from '$lib/stores/auth.js';
 	import { onMount } from 'svelte';
 
 	onMount(() => {

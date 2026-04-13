@@ -1,13 +1,18 @@
 <script>
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { auth } from '../../stores/auth.js';
+	import { auth } from '$lib/stores/auth.js';
+	import Notification from '$lib/components/Notification.svelte';
 
 	let videos = $state([]);
 	let loading = $state(true);
 	let error = $state(null);
 	let editingVideo = $state(null);
 	let showEditModal = $state(false);
+
+	// Notification system
+	let notification = $state({ message: '', type: 'info', visible: false });
+	let notificationRef;
 
 	onMount(() => {
 		// Wait for auth to be ready, then load videos
@@ -172,60 +177,159 @@
 			alert('Error updating video: ' + err.message);
 		}
 	}
+
+	async function downloadVideo(video) {
+		try {
+			// Get the video URL
+			const videoUrl = video.b64
+				? `data:video/mp4;base64,${video.b64}`
+				: `http://localhost:3000/${video.path.replace(/\\/g, '/')}`;
+
+			// Always fetch as blob for consistent download behavior
+			const response = await fetch(videoUrl);
+			const blob = await response.blob();
+			const blobUrl = window.URL.createObjectURL(blob);
+
+			// Create download link
+			const link = document.createElement('a');
+			link.href = blobUrl;
+			link.download = video.name || 'video.mp4';
+
+			// Trigger download
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+
+			// Clean up object URL
+			window.URL.revokeObjectURL(blobUrl);
+		} catch (err) {
+			console.error('Download failed:', err);
+			// Fallback: try opening in new tab if blob download fails
+			const fallbackUrl = video.b64
+				? `data:video/mp4;base64,${video.b64}`
+				: `http://localhost:3000/${video.path.replace(/\\/g, '/')}`;
+			window.open(fallbackUrl, '_blank');
+		}
+	}
+
+	// Notification functions (using component)
+	let showSuccess, showError, showWarning, showInfo, showNotification;
+
+	// Initialize notification functions from component
+	$effect(() => {
+		if (notificationRef) {
+			showSuccess = notificationRef.showSuccess;
+			showError = notificationRef.showError;
+			showWarning = notificationRef.showWarning;
+			showInfo = notificationRef.showInfo;
+			showNotification = notificationRef.showNotification;
+		}
+	});
 </script>
 
-<main class="container mx-auto px-4 py-8">
-	<div class="mx-auto max-w-6xl">
-		<div class="mb-6 flex items-center justify-between">
-			<div>
-				<h1 class="text-3xl font-bold">My Videos</h1>
-				<p class="text-gray-600">All your uploaded and merged videos in one place</p>
+<div class="min-h-screen font-sans" style="background:#1e1e1e; color:#c8d870;">
+	<!-- Main Content -->
+	<main class="mx-auto max-w-7xl px-6 py-8">
+		<div class="mb-8">
+			<!-- Search bar + header row -->
+			<div class="mb-6 flex items-center gap-3">
+				<div>
+					<h2 class="mb-2 text-2xl font-bold" style="color:#c8d870;">My Videos</h2>
+					<p class="text-sm" style="color:#7a8840;">
+						All your uploaded and merged videos in one place
+					</p>
+				</div>
 			</div>
-			<button
-				onclick={goToLibrary}
-				class="rounded border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50"
+
+			<!-- Search bar -->
+			<div
+				class="flex items-center gap-3"
+				style="border-bottom:0.5px solid #3a4018; padding-bottom:12px;"
 			>
-				Back to Editor
-			</button>
+				<input
+					type="text"
+					placeholder="Search videos..."
+					class="rounded-md px-3 py-1.5 text-sm outline-none"
+					style="width:200px; background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870;"
+				/>
+			</div>
 		</div>
 
 		{#if loading}
-			<div class="py-8 text-center">
-				<p class="text-lg">Loading your videos...</p>
+			<div class="py-16 text-center">
+				<p class="text-lg" style="color:#7a8840;">Loading your videos...</p>
 			</div>
 		{:else if error}
-			<div class="py-8 text-center">
-				<p class="mb-4 text-lg text-red-600">Error: {error}</p>
-				<button
-					onclick={loadVideos}
-					class="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
-				>
-					Retry
-				</button>
+			<div class="py-16 text-center">
+				<div class="mb-6 inline-block rounded-lg p-4" style="background:#c85050; color:#fff;">
+					{error}
+				</div>
+				<div>
+					<button
+						onclick={loadVideos}
+						class="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+						style="background:#4a5520; color:#c8d870; border:none; cursor:pointer;"
+						onmouseenter={(e) => {
+							e.target.style.background = '#6b7a2e';
+						}}
+						onmouseleave={(e) => {
+							e.target.style.background = '#4a5520';
+						}}
+					>
+						Retry
+					</button>
+				</div>
 			</div>
 		{:else if videos.length === 0}
-			<div class="py-8 text-center">
-				<p class="text-lg text-gray-600">No videos found</p>
-				<p class="text-gray-500">Upload some videos to get started!</p>
+			<div class="py-16 text-center">
+				<p class="mb-2 text-lg" style="color:#7a8840;">No videos found</p>
+				<p class="mb-6 text-sm" style="color:#5a6828;">Merge some videos to get started!</p>
+				<button
+					onclick={goToLibrary}
+					class="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+					style="background:#4a5520; color:#c8d870; border:none; cursor:pointer;"
+					onmouseenter={(e) => {
+						e.target.style.background = '#6b7a2e';
+					}}
+					onmouseleave={(e) => {
+						e.target.style.background = '#4a5520';
+					}}
+				>
+					Merge
+				</button>
 			</div>
 		{:else}
-			<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+			<div
+				style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:16px;"
+			>
 				{#each videos as video, index (`${video._id || video.id || 'video'}-${index}`)}
-					<div class="overflow-hidden rounded-lg bg-white shadow-md transition-all hover:shadow-lg">
+					<div
+						class="overflow-hidden rounded-xl transition-all"
+						style="background:#2a2e1a; border:0.5px solid #4a5520;"
+						onmouseenter={(e) => (e.currentTarget.style.borderColor = '#8a9a30')}
+						onmouseleave={(e) => (e.currentTarget.style.borderColor = '#4a5520')}
+					>
 						<div class="relative">
 							<!-- Video thumbnail/player -->
-							<div class="relative h-40 bg-gray-900">
+							<div style="position:relative; aspect-ratio:16/9; background:#111;">
 								{#if video.path}
 									{@const src = video.b64
 										? `data:video/mp4;base64,${video.b64}`
 										: `http://localhost:3000/${video.path.replace(/\\/g, '/')}`}
 
 									<!-- svelte-ignore a11y_media_has_caption -->
-									<video class="h-full w-full object-cover" {src} controls preload="metadata" />
+									<video
+										style="width:100%; height:100%; object-fit:cover;"
+										{src}
+										controls
+										preload="metadata"
+									/>
 								{:else}
-									<div class="flex h-40 items-center justify-center bg-gray-100">
+									<div
+										style="display:flex; align-items:center; justify-content:center; height:100%; background:#1e2210;"
+									>
 										<svg
-											class="h-12 w-12 text-gray-400"
+											style="width:48px; height:48px; color:#4a5520;"
 											fill="none"
 											stroke="currentColor"
 											viewBox="0 0 24 24"
@@ -233,13 +337,13 @@
 											<path
 												stroke-linecap="round"
 												stroke-linejoin="round"
-												stroke-width="2"
+												stroke-width="1.5"
 												d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
 											></path>
 											<path
 												stroke-linecap="round"
 												stroke-linejoin="round"
-												stroke-width="2"
+												stroke-width="1.5"
 												d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 											></path>
 										</svg>
@@ -248,7 +352,7 @@
 
 								{#if isMergedVideo(video)}
 									<div
-										class="absolute top-2 right-2 rounded bg-purple-500 px-2 py-1 text-xs text-white"
+										style="position:absolute; top:8px; right:8px; background:#3a5520; color:#a0d070; font-size:11px; padding:4px 8px; border-radius:4px; font-weight:500;"
 									>
 										Merged
 									</div>
@@ -256,40 +360,63 @@
 							</div>
 						</div>
 
-						<div class="p-4">
-							<h3 class="mb-2 truncate font-semibold">{video.name}</h3>
+						<div style="padding:12px 14px;">
+							<h3
+								style="font-size:14px; font-weight:500; color:#c8d870; margin-bottom:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+							>
+								{video.name}
+							</h3>
 
-							<div class="space-y-1 text-sm text-gray-600">
+							<div style="font-size:12px; color:#5a6828; line-height:1.5;">
 								{#if video.duration}
-									<div>Duration: {formatDuration(video.duration)}</div>
+									<div>
+										Duration: <span style="color:#a0b040;">{formatDuration(video.duration)}</span>
+									</div>
 								{/if}
 								{#if video.size}
-									<div>Size: {formatFileSize(video.size)}</div>
+									<div>Size: <span style="color:#a0b040;">{formatFileSize(video.size)}</span></div>
 								{/if}
 								{#if video.uploadedAt}
-									<div>Created: {formatDate(video.uploadedAt)}</div>
+									<div>
+										Created: <span style="color:#a0b040;">{formatDate(video.uploadedAt)}</span>
+									</div>
 								{/if}
 							</div>
 
 							{#if video.tags && video.tags.length > 0}
-								<div class="mt-3 flex flex-wrap gap-1">
+								<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;">
 									{#each video.tags as tag}
-										<span class="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">{tag}</span>
+										<span
+											style="background:#3a4018; color:#a0b040; font-size:10px; padding:2px 6px; border-radius:3px;"
+											>{tag}</span
+										>
 									{/each}
 								</div>
 							{/if}
 
 							<!-- Action buttons -->
-							<div class="mt-4 flex gap-2">
+							<div style="display:flex; gap:6px; margin-top:12px;">
+								<button
+									onclick={() => downloadVideo(video)}
+									style="flex:1; padding:6px 0; font-size:11px; font-weight:500; border-radius:5px; border:0.5px solid #5a7a2e; background:#3a5520; color:#c8e870; cursor:pointer; transition:background 0.15s;"
+									onmouseenter={(e) => (e.currentTarget.style.background = '#4a6828')}
+									onmouseleave={(e) => (e.currentTarget.style.background = '#3a5520')}
+								>
+									Download
+								</button>
 								<button
 									onclick={() => openEditModal(video)}
-									class="flex-1 rounded border border-blue-500 bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600"
+									style="flex:1; padding:6px 0; font-size:11px; font-weight:500; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#a0b040; cursor:pointer; transition:background 0.15s;"
+									onmouseenter={(e) => (e.currentTarget.style.background = '#2a3010')}
+									onmouseleave={(e) => (e.currentTarget.style.background = '#1e2210')}
 								>
 									Edit
 								</button>
 								<button
 									onclick={() => deleteVideo(video)}
-									class="flex-1 rounded border border-red-500 bg-red-500 px-3 py-1 text-sm text-white hover:bg-red-600"
+									style="flex:1; padding:6px 0; font-size:11px; font-weight:500; border-radius:5px; border:0.5px solid #7a2020; background:#5a3030; color:#d0a0a0; cursor:pointer; transition:background 0.15s;"
+									onmouseenter={(e) => (e.currentTarget.style.background = '#7a4040')}
+									onmouseleave={(e) => (e.currentTarget.style.background = '#5a3030')}
 								>
 									Delete
 								</button>
@@ -299,52 +426,64 @@
 				{/each}
 			</div>
 		{/if}
-	</div>
-</main>
+	</main>
+</div>
 
 <!-- Edit Modal -->
 {#if showEditModal && editingVideo}
-	<div class="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
-		<div class="w-full max-w-md rounded-lg bg-white p-6">
-			<h2 class="mb-4 text-xl font-bold">Edit Video</h2>
+	<div
+		style="position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6);"
+		onclick={closeEditModal}
+	>
+		<div
+			style="width:380px; background:#2a2e1a; border:0.5px solid #4a5520; border-radius:10px; padding:24px;"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<h2 style="font-size:16px; font-weight:500; color:#c8d870; margin-bottom:20px;">
+				Edit Video
+			</h2>
 
-			<div class="space-y-4">
+			<div style="display:flex; flex-direction:column; gap:16px;">
 				<div>
-					<label for="video-name" class="mb-1 block text-sm font-medium text-gray-700">
-						Video Name
-					</label>
+					<label
+						for="video-name"
+						style="display:block; font-size:12px; color:#7a8840; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;"
+						>Video Name</label
+					>
 					<input
 						id="video-name"
 						type="text"
 						bind:value={editingVideo.name}
-						class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+						style="width:100%; background:#1e2210; border:0.5px solid #4a5520; border-radius:6px; padding:8px 10px; font-size:13px; color:#c8d870; outline:none;"
 					/>
 				</div>
 
 				<div>
-					<label for="video-tags" class="mb-1 block text-sm font-medium text-gray-700">
-						Tags (comma separated)
-					</label>
+					<label
+						for="video-tags"
+						style="display:block; font-size:12px; color:#7a8840; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;"
+						>Tags (comma separated)</label
+					>
 					<input
 						id="video-tags"
 						type="text"
 						bind:value={editingVideo.tagsString}
 						placeholder="tag1, tag2, tag3"
-						class="w-full rounded border border-gray-300 px-3 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+						style="width:100%; background:#1e2210; border:0.5px solid #4a5520; border-radius:6px; padding:8px 10px; font-size:13px; color:#c8d870; outline:none; placeholder:#5a6828;"
 					/>
 				</div>
 			</div>
 
-			<div class="mt-6 flex gap-3">
+			<div style="display:flex; gap:8px; margin-top:20px;">
 				<button
 					onclick={closeEditModal}
-					class="flex-1 rounded border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50"
+					style="flex:1; padding:8px 16px; font-size:13px; border-radius:6px; border:0.5px solid #4a5520; background:#1e2210; color:#a0b040; cursor:pointer;"
 				>
 					Cancel
 				</button>
 				<button
 					onclick={saveVideo}
-					class="flex-1 rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+					style="flex:1; padding:8px 16px; font-size:13px; font-weight:500; border-radius:6px; border:none; background:#6b7a2e; color:#fff; cursor:pointer;"
 				>
 					Save Changes
 				</button>
@@ -352,3 +491,6 @@
 		</div>
 	</div>
 {/if}
+
+<!-- Notification Component -->
+<Notification bind:notification bind:this={notificationRef} />

@@ -1,5 +1,5 @@
 <script>
-	import { auth } from '../../stores/auth.js';
+	import { auth } from '$lib/stores/auth.js';
 
 	let email = '';
 	let password = '';
@@ -55,60 +55,87 @@
 	}
 </script>
 
-<div class="auth-container">
-	<div class="auth-card">
-		<div class="auth-header">
-			<h1>Login</h1>
-			<p>Sign in to access the video merger</p>
+<div class="min-h-screen font-sans" style="background:#1e1e1e; color:#c8d870;">
+	<!-- Main Content -->
+	<main class="mx-auto max-w-7xl px-6 py-8">
+		<div class="mx-auto max-w-md">
+			<div class="rounded-xl p-8" style="background:#2a2e1a; border:0.5px solid #4a5520;">
+				<div class="mb-8">
+					<h2 class="mb-2 text-2xl font-bold" style="color:#c8d870;">Welcome Back</h2>
+					<p class="text-sm" style="color:#7a8840;">Sign in to access your account</p>
+				</div>
+
+				{#if error}
+					<div class="mb-6 rounded-lg p-4" style="background:#c85050; color:#fff;">
+						{error}
+					</div>
+				{/if}
+
+				{#if success}
+					<div class="mb-6 rounded-lg p-4" style="background:#4a5520; color:#c8d870;">
+						{success}
+					</div>
+				{/if}
+
+				<form onsubmit={handleLogin} class="space-y-6">
+					<div>
+						<label for="email" class="mb-2 block text-sm font-medium" style="color:#c8d870;"
+							>Email Address</label
+						>
+						<input
+							id="email"
+							type="email"
+							bind:value={email}
+							placeholder="Enter your email"
+							class="w-full rounded-lg px-4 py-3 text-sm outline-none"
+							style="background:#1e2210; border:0.5px solid #4a5520; color:#c8d870; placeholder:#7a8840;"
+							required
+						/>
+					</div>
+
+					<div>
+						<label for="password" class="mb-2 block text-sm font-medium" style="color:#c8d870;"
+							>Password</label
+						>
+						<input
+							id="password"
+							type="password"
+							bind:value={password}
+							placeholder="Enter your password"
+							class="w-full rounded-lg px-4 py-3 text-sm outline-none"
+							style="background:#1e2210; border:0.5px solid #4a5520; color:#c8d870; placeholder:#7a8840;"
+							required
+						/>
+					</div>
+
+					<div class="flex items-center justify-between">
+						<a href="/forgot-password" class="text-sm" style="color:#7a8840;"
+							>Forgot your password?</a
+						>
+						<button
+							type="submit"
+							disabled={loading}
+							class="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors"
+							style="background:#4a5520; color:#c8d870; border:none; cursor:pointer;"
+							onmouseenter={(e) => {
+								e.target.style.background = '#6b7a2e';
+							}}
+							onmouseleave={(e) => {
+								e.target.style.background = '#4a5520';
+							}}
+						>
+							{loading ? 'Signing in...' : 'Sign In'}
+						</button>
+					</div>
+				</form>
+
+				<div class="mt-8 text-center">
+					<p class="text-sm" style="color:#7a8840;">
+						Don't have an account?
+						<a href="/signup" class="font-medium" style="color:#4a5520;">Sign up</a>
+					</p>
+				</div>
+			</div>
 		</div>
-
-		{#if error}
-			<div class="error-message">
-				{error}
-			</div>
-		{/if}
-
-		{#if success}
-			<div class="success-message">
-				{success}
-			</div>
-		{/if}
-
-		<form class="auth-form" on:submit|preventDefault={handleLogin}>
-			<div class="form-group">
-				<label for="email">Email:</label>
-				<input
-					id="email"
-					type="email"
-					bind:value={email}
-					placeholder="Enter your email"
-					class="auth-input"
-					required
-				/>
-			</div>
-
-			<div class="form-group">
-				<label for="password">Password:</label>
-				<input
-					id="password"
-					type="password"
-					bind:value={password}
-					placeholder="Enter your password"
-					class="auth-input"
-					required
-				/>
-			</div>
-
-			<button type="submit" class="auth-button" disabled={loading}>
-				{loading ? 'Signing in...' : 'Sign In'}
-			</button>
-		</form>
-		<div class="forgot-password">
-			<p><a href="/forgot-password">Forgot your password?</a></p>
-		</div>
-
-		<div class="auth-link">
-			<p>Don't have an account? <a href="/signup">Sign up</a></p>
-		</div>
-	</div>
+	</main>
 </div>

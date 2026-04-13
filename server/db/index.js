@@ -1,3 +1,4 @@
+require('dotenv').config();
 const { drizzle } = require("drizzle-orm/mysql2");
 const mysql = require("mysql2/promise");
 const { media, users, roles, merged_media } = require("./schema");
@@ -18,6 +19,7 @@ function newId() {
 }
 
 // ── Media ─────────────────────────────────────────────────────────────────────
+
 
 async function getMediaData() {
   return db.select().from(media);
@@ -66,18 +68,18 @@ async function deleteMediaById(id) {
 function userQuery() {
   return db
     .select({
-      id:                  users.id,
-      uuid:                users.uuid,
-      name:                users.name,
-      email:               users.email,
-      password:            users.password,
-      role_id:             users.role_id,
-      reset_token:         users.reset_token,
+      id: users.id,
+      uuid: users.uuid,
+      name: users.name,
+      email: users.email,
+      password: users.password,
+      role_id: users.role_id,
+      reset_token: users.reset_token,
       reset_token_expires: users.reset_token_expires,
-      created_at:          users.created_at,
+      created_at: users.created_at,
       // Aliased to avoid collision with users.id / users.name
-      _role_id:            roles.id,
-      _role_name:          roles.name,
+      _role_id: roles.id,
+      _role_name: roles.name,
     })
     .from(users)
     .leftJoin(roles, eq(users.role_id, roles.id));
@@ -94,6 +96,11 @@ function shapeUser(row) {
 }
 
 async function getUsersData() {
+  const rows = await userQuery();
+  return rows.map(shapeUser);
+}
+
+async function getAllUsers() {
   const rows = await userQuery();
   return rows.map(shapeUser);
 }
@@ -224,6 +231,7 @@ module.exports = {
   deleteMediaById,
   // users
   getUsersData,
+  getAllUsers,
   getUserById,
   getUserByEmail,
   insertUser,
