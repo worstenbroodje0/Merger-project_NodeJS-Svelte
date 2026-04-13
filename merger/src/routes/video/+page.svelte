@@ -15,8 +15,14 @@
 	let notificationRef;
 
 	onMount(() => {
-		// Wait for auth to be ready, then load videos
+		// Check if user is authenticated, redirect if not
 		const unsubscribe = auth.subscribe((authState) => {
+			if (!authState || !authState.user) {
+				console.log('User not authenticated, redirecting to login');
+				goto('/login');
+				return;
+			}
+
 			if (authState) {
 				console.log('Auth updated in video page:', authState);
 				loadVideos();
