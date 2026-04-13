@@ -10,7 +10,10 @@
 	});
 </script>
 
-<nav class="flex items-center justify-between px-5" style="background:#6b7a2e; height:42px;">
+<nav
+	class="flex items-center justify-between px-5"
+	style="position:sticky; top:0; z-index:50; background:#6b7a2e; height:42px;"
+>
 	<div class="flex">
 		<a
 			href="/"
