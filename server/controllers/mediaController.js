@@ -439,24 +439,60 @@ exports.DeleteVideo = catchAsync(async (req, res) => {
     const { id } = req.params;
     const videoId = Number(id);
 
-    const regularVideo = await getMediaById(videoId);
-    if (regularVideo) {
-        await deleteMediaById(videoId);
-        return res.status(200).json({ status: 'success', message: 'Video deleted successfully' });
+    // Check if video exists and get its info for thumbnail deletion
+    let currentVideo = await getMediaById(videoId);
+    let isMerged = false;
+
+    if (!currentVideo) {
+        currentVideo = await getMergedMediaById(videoId);
+        isMerged = true;
     }
 
-    const mergedVideo = await getMergedMediaById(videoId);
-    if (mergedVideo) {
+    if (!currentVideo) {
+        return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Delete thumbnail if it exists
+    const thumbnailPath = path.join('thumbnails', currentVideo.name.replace(/\.[^/.]+$/, '') + '.jpg');
+    try {
+        fs.unlinkSync(thumbnailPath);
+    } catch (error) {
+        // Thumbnail might not exist, that's ok
+    }
+
+    // Delete the video from the appropriate table
+    if (isMerged) {
         await deleteMergedMediaById(videoId);
-        return res.status(200).json({ status: 'success', message: 'Video deleted successfully' });
+    } else {
+        await deleteMediaById(videoId);
     }
 
-    return res.status(404).json({ error: 'Video not found' });
+    return res.status(200).json({ status: 'success', message: 'Video deleted successfully' });
 });
 
 exports.EditVideo = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { name, tags } = req.body;
+
+    // Get current video to check if name is changing
+    let currentVideo = await getMediaById(Number(id));
+    if (!currentVideo) {
+        currentVideo = await getMergedMediaById(Number(id));
+    }
+
+    if (!currentVideo) {
+        return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Delete old thumbnail if name is changing
+    if (currentVideo.name !== name) {
+        const oldThumbnailPath = path.join('thumbnails', currentVideo.name.replace(/\.[^/.]+$/, '') + '.jpg');
+        try {
+            fs.unlinkSync(oldThumbnailPath);
+        } catch (error) {
+            // Thumbnail might not exist, that's ok
+        }
+    }
 
     let updatedVideo = await updateMediaById(Number(id), { name, tags });
     if (!updatedVideo) {
@@ -467,12 +503,24 @@ exports.EditVideo = catchAsync(async (req, res) => {
         return res.status(404).json({ error: 'Video not found' });
     }
 
+    // Generate new thumbnail if name changed
+    if (currentVideo.name !== name) {
+        const videoPath = resolveVideoPath(updatedVideo);
+        if (videoPath) {
+            const newThumbnailPath = path.join('thumbnails', name.replace(/\.[^/.]+$/, '') + '.jpg');
+            generateThumbnail(path.resolve(videoPath), newThumbnailPath).catch(() => {
+                // Thumbnail generation failed, but that's ok
+            });
+        }
+    }
+
     res.status(200).json({ status: 'success', data: updatedVideo });
 });
 
 // Apply overlays
 exports.applyOverlay = catchAsync(async (req, res) => {
     const video = await getMediaById(parseInt(req.params.id, 10));
+    // ... (rest of the code remains the same)
     if (!video) return res.status(404).json({ error: 'Video not found' });
 
     const inputPath = resolveVideoPath(video);
