@@ -389,7 +389,7 @@
 		<!-- Right: persistent sidebar, always visible in library tab -->
 		{#if activeTab === 'library'}
 			<aside
-				style="position:sticky; top:42px; width:300px;  min-height:400px; height: 650px; flex-shrink:0; border-left:0.5px solid #3a4018; background:#222a10; border-radius:12px 0 0 12px; overflow-y:auto;"
+				style="position:sticky; top:42px; width:300px;  min-height:600px; height: 650px; flex-shrink:0; border-left:0.5px solid #3a4018; background:#222a10; border-radius:12px 0 0 12px; overflow-y:auto;"
 			>
 				<LibraryMergePanel
 					bind:selectedIds
