@@ -1,5 +1,6 @@
 <script>
 	// @ts-nocheck
+	import { auth } from '$lib/stores/auth.js';
 
 	let {
 		users,
@@ -130,27 +131,29 @@
 										/>
 									</svg>
 								</button>
-								<button
-									onclick={() => askDelete('user', u.id, u.name)}
-									style="width:28px; height:28px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#7a8840; cursor:pointer; display:flex; align-items:center; justify-content:center;"
-									onmouseenter={(e) => {
-										e.currentTarget.style.borderColor = '#c85050';
-										e.currentTarget.style.color = '#c85050';
-									}}
-									onmouseleave={(e) => {
-										e.currentTarget.style.borderColor = '#4a5520';
-										e.currentTarget.style.color = '#7a8840';
-									}}
-									title="Delete"
-								>
-									<svg style="width:13px; height:13px;" viewBox="0 0 20 20" fill="currentColor">
-										<path
-											fill-rule="evenodd"
-											d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-											clip-rule="evenodd"
-										/>
-									</svg>
-								</button>
+								{#if auth.isAdmin()}
+									<button
+										onclick={() => askDelete('user', u.id, u.name)}
+										style="width:28px; height:28px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#7a8840; cursor:pointer; display:flex; align-items:center; justify-content:center;"
+										onmouseenter={(e) => {
+											e.currentTarget.style.borderColor = '#c85050';
+											e.currentTarget.style.color = '#c85050';
+										}}
+										onmouseleave={(e) => {
+											e.currentTarget.style.borderColor = '#4a5520';
+											e.currentTarget.style.color = '#7a8840';
+										}}
+										title="Delete"
+									>
+										<svg style="width:13px; height:13px;" viewBox="0 0 20 20" fill="currentColor">
+											<path
+												fill-rule="evenodd"
+												d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+												clip-rule="evenodd"
+											/>
+										</svg>
+									</button>
+								{/if}
 							</div>
 						</td>
 					</tr>
