@@ -488,6 +488,24 @@
 							onblur={(e) => (e.target.style.borderColor = '#4a5520')}
 						/>
 					</div>
+					{#if auth.isAdmin()}
+						<div>
+							<label
+								style="display:block; font-size:11px; color:#7a8840; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.05em;"
+								>Role</label
+							>
+							<select
+								bind:value={editRoleId}
+								style="width:100%; background:#1e2210; border:0.5px solid #4a5520; border-radius:6px; padding:8px 10px; font-size:13px; color:#c8d870; outline:none; cursor:pointer;"
+								onfocus={(e) => (e.target.style.borderColor = '#6b7a2e')}
+								onblur={(e) => (e.target.style.borderColor = '#4a5520')}
+							>
+								{#each roles as role}
+									<option value={role.id}>{role.name}</option>
+								{/each}
+							</select>
+						</div>
+					{/if}
 				{:else}
 					<div>
 						<label

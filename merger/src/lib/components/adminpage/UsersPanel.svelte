@@ -34,6 +34,22 @@
 		};
 		return map[name?.toLowerCase()] ?? 'background:#2a2e1a; color:#7a8840;';
 	}
+
+	function isCurrentUser(user) {
+		let currentUser = null;
+		auth.subscribe((state) => {
+			currentUser = state.user;
+		})();
+		return currentUser?.id === user.id;
+	}
+
+	function rowStyle(user) {
+		const baseStyle = 'border-bottom:0.5px solid #2a3018;';
+		if (isCurrentUser(user)) {
+			return baseStyle + ' background:#252d12; border-left:3px solid #6b7a2e;';
+		}
+		return baseStyle;
+	}
 </script>
 
 <div style="background:#2a2e1a; border:0.5px solid #4a5520; border-radius:8px; overflow:hidden;">
@@ -77,9 +93,17 @@
 			{:else}
 				{#each filteredUsers as u (u.id)}
 					<tr
-						style="border-bottom:0.5px solid #2a3018;"
-						onmouseenter={(e) => (e.currentTarget.style.background = '#252d12')}
-						onmouseleave={(e) => (e.currentTarget.style.background = 'transparent')}
+						style={rowStyle(u)}
+						onmouseenter={(e) => {
+							if (!isCurrentUser(u)) {
+								e.currentTarget.style.background = '#252d12';
+							}
+						}}
+						onmouseleave={(e) => {
+							if (!isCurrentUser(u)) {
+								e.currentTarget.style.background = 'transparent';
+							}
+						}}
 					>
 						<td style="padding:10px 14px;">
 							<div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
@@ -131,7 +155,7 @@
 										/>
 									</svg>
 								</button>
-								{#if auth.isAdmin()}
+								{#if auth.isAdmin() && !isCurrentUser(u)}
 									<button
 										onclick={() => askDelete('user', u.id, u.name)}
 										style="width:28px; height:28px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#7a8840; cursor:pointer; display:flex; align-items:center; justify-content:center;"
