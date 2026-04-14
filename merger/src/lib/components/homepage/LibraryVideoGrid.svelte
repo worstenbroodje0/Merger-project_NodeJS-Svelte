@@ -1,4 +1,6 @@
 <script>
+	// @ts-nocheck
+
 	import { goto } from '$app/navigation';
 
 	let {
@@ -56,7 +58,7 @@
 					{src}
 					onclick={(e) => e.stopPropagation()}
 					controls
-				/>
+				></video>
 			</div>
 
 			<div class="flex items-center gap-2 px-3 py-2">

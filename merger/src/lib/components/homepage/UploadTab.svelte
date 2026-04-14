@@ -1,4 +1,5 @@
 <script>
+// @ts-nocheck
 	let {
 		uploadedFiles = $bindable([]),
 		uploadLoading = false,

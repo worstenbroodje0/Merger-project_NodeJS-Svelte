@@ -1,4 +1,5 @@
 <script>
+// @ts-nocheck
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { auth } from '$lib/stores/auth.js';

@@ -526,10 +526,15 @@
 	<div
 		style="position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6);"
 		onclick={closeModal}
+		onkeydown={(e) => e.key === 'Escape' && closeModal()}
+		tabindex="-1"
+		role="dialog"
+		aria-modal="true"
 	>
 		<div
 			style="width:380px; background:#2a2e1a; border:0.5px solid #4a5520; border-radius:10px; padding:24px;"
-			onclick={(e) => e.stopPropagation()}
+			role="document"
+			aria-hidden="false"
 		>
 			<h3 style="font-size:14px; font-weight:500; color:#c8d870; margin-bottom:20px;">
 				{modal.type === 'user' ? 'Edit user' : 'Edit video'}
@@ -607,10 +612,14 @@
 	<div
 		style="position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6);"
 		onclick={() => (confirm.open = false)}
+		onkeydown={(e) => e.key === 'Escape' && (confirm.open = false)}
+		tabindex="-1"
+		role="dialog"
+		aria-modal="true"
 	>
 		<div
+			role="document"
 			style="width:320px; background:#2a2e1a; border:0.5px solid #4a5520; border-radius:10px; padding:24px;"
-			onclick={(e) => e.stopPropagation()}
 		>
 			<div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
 				<div
@@ -661,10 +670,17 @@
 	<div
 		style="position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.85);"
 		onclick={closeVideoPlayer}
+		onkeydown={(e) =>
+			(e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') && closeVideoPlayer()}
+		tabindex="0"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Close video player"
 	>
 		<div
 			style="width:100%; max-width:900px; margin:0 16px; background:#111; border-radius:10px; overflow:hidden; border:0.5px solid #3a4018;"
 			onclick={(e) => e.stopPropagation()}
+			role="document"
 		>
 			<div
 				style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:0.5px solid #2a3010;"

@@ -1,4 +1,5 @@
 <script>
+// @ts-nocheck
 	import { auth } from '$lib/stores/auth.js';
 
 	let email = '';

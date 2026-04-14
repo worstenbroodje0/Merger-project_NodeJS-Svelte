@@ -37,9 +37,17 @@
 	<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px,1fr)); gap:12px;">
 		{#each filteredVideos as v, i (i)}
 			<div
-				style="background:#2a2e1a; border:0.5px solid #4a5520; border-radius:8px; overflow:hidden; transition:border-color 0.15s;"
+				role="button"
+				tabindex="0"
+				style="background:#2a2e1a; border:0.5px solid #4a5520; border-radius:8px; overflow:hidden; transition:border-color 0.15s; cursor:pointer;"
 				onmouseenter={(e) => (e.currentTarget.style.borderColor = '#8a9a30')}
 				onmouseleave={(e) => (e.currentTarget.style.borderColor = '#4a5520')}
+				onkeydown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						playVideo(v);
+					}
+				}}
 			>
 				<div
 					style="position:relative; aspect-ratio:16/9; background:#111; display:flex; align-items:center; justify-content:center;"

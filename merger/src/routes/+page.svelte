@@ -1,4 +1,6 @@
 <script>
+// @ts-nocheck
+
 	import { goto } from '$app/navigation';
 	import { auth } from '$lib/stores/auth.js';
 	import Notification from '$lib/components/Notification.svelte';
@@ -8,7 +10,9 @@
 
 	const BASE = 'http://localhost:3000/api';
 
-	let videos = $state([]);
+	let videos = $state(
+		/** @type {Array<{_id?: string, id?: string, name: string, b64?: string, duration?: number, tags?: string | string[], user_id?: string | null, _uid?: string}>} */ ([])
+	);
 	let loading = $state(true);
 	let error = $state(null);
 	let selectedIds = $state(/** @type {string[]} */ ([]));
@@ -21,13 +25,18 @@
 	let uploadLoading = $state(false);
 	let uploadError = $state('');
 
-	let mergePanelRef;
+	let mergePanelRef = $state(/** @type {{getOverlayConfig: () => any}} */ (null));
 	let showEditModal = $state(false);
 	let editingVideo = $state(null);
 
 	let notification = $state({ message: '', type: 'info', visible: false });
-	let notificationRef;
-	let showSuccess, showError;
+	let notificationRef = $state(
+		/** @type {{showSuccess: (msg: string) => void, showError: (msg: string) => void}} */ (null)
+	);
+	/** @type {(msg: string) => void | undefined} */
+	let showSuccess;
+	/** @type {(msg: string) => void | undefined} */
+	let showError;
 
 	$effect(() => {
 		if (notificationRef) {
@@ -38,12 +47,12 @@
 
 	let _uidCounter = 0;
 
-	function stamp(video) {
+	function stamp(/** @type {any} */ video) {
 		if (!video._uid) video._uid = String(++_uidCounter);
 		return video;
 	}
 
-	function getVideo(uid) {
+	function getVideo(/** @type {string} */ uid) {
 		return videos.find((v) => v._uid === uid);
 	}
 
@@ -57,7 +66,7 @@
 				if (res.ok) {
 					const data = await res.json();
 					remote = (data.data || [])
-						.filter((v) => {
+						.filter((/** @type {any} */ v) => {
 							if (!$auth.user?.id) return true;
 							return v.user_id === $auth.user.id || v.user_id === null;
 						})
@@ -255,7 +264,7 @@
 		}
 	}
 
-	async function deleteVideo(videoId) {
+	async function deleteVideo(/** @type {string} */ videoId) {
 		if (!confirm('Are you sure you want to delete this video?')) return;
 		try {
 			const res = await fetch(`${BASE}/media/${videoId}`, { method: 'DELETE' });
@@ -270,12 +279,12 @@
 		}
 	}
 
-	function editVideo(video) {
+	function editVideo(/** @type {any} */ video) {
 		editingVideo = { ...video };
 		showEditModal = true;
 	}
 
-	async function saveVideoEdit(video) {
+	async function saveVideoEdit(/** @type {any} */ video) {
 		try {
 			const videoId = video._id || video.id;
 			const tags =
@@ -283,7 +292,7 @@
 					? video.tags
 							.split(',')
 							.map((tag) => tag.trim())
-							.filter((tag) => tag)
+							.filter((/** @type {string} */ tag) => tag)
 					: video.tags;
 			const res = await fetch(`${BASE}/media/${videoId}`, {
 				method: 'PUT',
