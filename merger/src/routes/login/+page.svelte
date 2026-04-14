@@ -1,142 +1,339 @@
 <script>
-// @ts-nocheck
+	// @ts-nocheck
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { auth } from '$lib/stores/auth.js';
+	import Notification from '$lib/components/Notification.svelte';
+	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
+	import UsersPanel from '$lib/components/adminpage/UsersPanel.svelte';
+	import VideosPanel from '$lib/components/adminpage/VideosPanel.svelte';
+	import UploadPanel from '$lib/components/adminpage/UploadPanel.svelte';
 
-	let email = '';
-	let password = '';
-	let loading = false;
-	let error = '';
-	let success = '';
+	const BASE = 'http://localhost:3000/api';
 
-	/** @param {string} path */
-	function navigate(path) {
-		if (typeof window !== 'undefined') {
-			window.location.href = path;
-		}
-	}
+	let activeTab = $state('users');
+	let users = $state([]);
+	let videos = $state([]);
+	let loading = $state(true);
+	let userSearch = $state('');
+	let videoSearch = $state('');
+	let videoTagFilter = $state('');
+	let videoMergeFilter = $state('');
+	let selectedRoleFilter = $state('');
+	let notification = $state({ message: '', type: 'info', visible: false });
+	let notificationRef;
 
-	async function handleLogin() {
+	let modal = $state({ open: false, type: '', target: null });
+	let editName = $state('');
+	let editEmail = $state('');
+	let editRoleId = $state(null);
+	let editTags = $state('');
+
+	let roles = $state([]);
+
+	// Unified confirm state
+	let confirmState = $state({ open: false, type: '', id: null, label: '', merged: false });
+
+	let videoPlayer = $state({ open: false, video: null });
+	let pendingFiles = $state([]);
+	let uploading = $state(false);
+	let uploadProgress = $state(0);
+	let isDragging = $state(false);
+	let uploadKey = $state(0);
+
+	let filteredUsers = $derived(
+		users.filter((u) => {
+			const searchMatch = !userSearch || u.name?.toLowerCase().includes(userSearch.toLowerCase()) || u.email?.toLowerCase().includes(userSearch.toLowerCase());
+			const roleMatch = !selectedRoleFilter || u.role?.name?.toLowerCase() === selectedRoleFilter.toLowerCase();
+			return searchMatch && roleMatch;
+		})
+	);
+
+	let filteredVideos = $derived(
+		videos.filter((v) => {
+			const nameMatch = !videoSearch || v.name?.toLowerCase().includes(videoSearch.toLowerCase());
+			let tagMatch = true;
+			if (videoTagFilter) { tagMatch = Array.isArray(v.tags) && v.tags.length ? v.tags.includes(videoTagFilter) : false; }
+			let mergeMatch = true;
+			if (videoMergeFilter) { mergeMatch = videoMergeFilter === 'merged' ? v.merged : !v.merged; }
+			return nameMatch && tagMatch && mergeMatch;
+		})
+	);
+
+	let regularVideos = $derived(videos.filter((v) => !v.merged));
+	let mergedVideos = $derived(videos.filter((v) => v.merged));
+	let availableTags = $state([]);
+
+	$effect(() => {
+		const tagSet = new Set();
+		videos.forEach((v) => { if (Array.isArray(v.tags)) v.tags.forEach((t) => tagSet.add(t)); });
+		availableTags = Array.from(tagSet).sort();
+	});
+
+	async function load() {
+		if (!(await auth.isAdmin()) && !(await auth.isEditor())) { goto('/'); return; }
 		loading = true;
-		error = '';
-		success = '';
-
 		try {
-			const response = await fetch('http://localhost:3000/api/users/login', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({ email, password })
-			});
+			const [uRes, vRes, rRes] = await Promise.all([fetch(`${BASE}/admin/users`), fetch(`${BASE}/media`), fetch(`${BASE}/roles`).catch(() => ({ ok: false }))]);
+			users = uRes.ok ? (await uRes.json()).data || [] : [];
+			const rawVideos = vRes.ok ? (await vRes.json()).data || [] : [];
+			try {
+				const regRes = await fetch(`${BASE}/media/regular`);
+				const regIds = regRes.ok ? new Set(((await regRes.json()).data || []).map((v) => v.id)) : new Set();
+				videos = rawVideos.map((v) => ({ ...v, merged: !regIds.has(v.id) }));
+			} catch { videos = rawVideos.map((v) => ({ ...v, merged: false })); }
+			roles = rRes.ok ? (await rRes.json()).data || [] : [{ id: 1, name: 'admin' }, { id: 2, name: 'editor' }, { id: 3, name: 'user' }];
+		} catch { showError?.('Failed to load data'); }
+		finally { loading = false; }
+	}
 
-			const data = await response.json();
+	onMount(async () => { auth.initialize(); await load(); });
 
-			if (data.status === 'success') {
-				success = data.message;
+	function openEditUser(u) { modal = { open: true, type: 'user', target: u }; editName = u.name || ''; editEmail = u.email || ''; editRoleId = u.role?.id ?? u.role_id ?? null; }
+	function openEditVideo(v) { editName = v.name; editTags = Array.isArray(v.tags) ? v.tags.join(', ') : ''; modal = { open: true, type: 'video', target: v }; }
+	function playVideo(v) { videoPlayer = { open: true, video: v }; }
+	function closeVideoPlayer() { videoPlayer = { open: false, video: null }; }
+	function closeModal() { modal = { open: false, type: '', target: null }; }
 
-				// Use auth store to handle login
-				auth.login(data.token, data.data.user);
+	async function downloadVideo(video) {
+		try {
+			const url = video.b64 ? `data:video/mp4;base64,${video.b64}` : `http://localhost:3000/${video.path.replace(/\\/g, '/')}`;
+			const blob = await (await fetch(url)).blob();
+			const blobUrl = URL.createObjectURL(blob);
+			const link = document.createElement('a'); link.href = blobUrl; link.download = video.name || 'video.mp4';
+			document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(blobUrl);
+		} catch { window.open(`http://localhost:3000/${video.path?.replace(/\\/g, '/')}`, '_blank'); }
+	}
 
-				// Redirect to merge page after successful login
-				setTimeout(() => {
-					navigate('/');
-				}, 1000);
-			} else {
-				error = data.message;
-			}
-		} catch (err) {
-			error = 'Failed to connect to server. Please try again.';
-		} finally {
-			loading = false;
+	async function saveEdit() {
+		const { type, target } = modal;
+		if (!target) return;
+		if (type === 'user') {
+			try {
+				const isEdit = target.id !== undefined;
+				await fetch(isEdit ? `${BASE}/admin/users/${target.id}` : `${BASE}/admin/users`, { method: isEdit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editName, email: editEmail, role_id: editRoleId }) });
+			} catch (_) {}
+			const matchedRole = roles.find((r) => r.id === Number(editRoleId)) ?? null;
+			users = users.map((u) => u.id === target.id ? { ...u, name: editName, email: editEmail, role_id: editRoleId, role: matchedRole } : u);
+			showSuccess?.('User updated successfully');
+		} else {
+			const tags = editTags.split(',').map((t) => t.trim()).filter(Boolean);
+			try {
+				const response = await fetch(`${BASE}/media/${target.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: editName, tags }) });
+				if (!response.ok) throw new Error('Failed to update video');
+			} catch { showError?.('Failed to update video'); return; }
+			videos = videos.map((v) => v.id === target.id ? { ...v, name: editName, tags } : v);
+			showSuccess?.('Video updated successfully');
+		}
+		closeModal();
+	}
+
+	function askDelete(type, id, label, merged = false) { confirmState = { open: true, type, id, label, merged }; }
+	function getUserName(userId) { if (!userId) return 'Unknown'; return users.find((u) => u.id === userId)?.name ?? 'Unknown'; }
+
+	async function doDelete() {
+		const { type, id } = confirmState;
+		confirmState = { open: false, type: '', id: null, label: '', merged: false };
+		if (type === 'user') {
+			try { await fetch(`${BASE}/admin/users/${id}`, { method: 'DELETE' }); } catch (_) {}
+			users = users.filter((u) => u.id !== id);
+			showSuccess?.('User deleted successfully');
+		} else {
+			try {
+				const response = await fetch(`${BASE}/media/${id}`, { method: 'DELETE' });
+				if (!response.ok) throw new Error('Failed to delete video');
+			} catch { showError?.('Failed to delete video'); return; }
+			videos = videos.filter((v) => v.id !== id);
+			showSuccess?.('Video deleted successfully');
 		}
 	}
 
-	function handleSignup() {
-		navigate('/signup');
+	function handleFiles(e) {
+		const files = Array.from(e.target?.files || e.dataTransfer?.files || []);
+		pendingFiles = files.length > 0 ? [files[0]] : [];
+		if (e.target) e.target.value = '';
 	}
+	function removeFile(i) { pendingFiles = pendingFiles.filter((_, idx) => idx !== i); }
+
+	async function uploadFiles() {
+		if (!pendingFiles.length) return;
+		uploading = true; uploadProgress = 0;
+		const fd = new FormData();
+		pendingFiles.forEach((f) => fd.append('video', f));
+		const iv = setInterval(() => { if (uploadProgress < 85) uploadProgress = Math.min(uploadProgress + Math.random() * 10, 85); }, 200);
+		try {
+			const res = await fetch(`${BASE}/media/upload`, { method: 'POST', body: fd });
+			clearInterval(iv); uploadProgress = 100;
+			if (res.ok) {
+				showSuccess?.('Video uploaded successfully!');
+				pendingFiles = []; uploadKey++;
+				await load();
+			} else { showError?.('Upload failed'); }
+		} catch { clearInterval(iv); showError?.('Upload failed — check your upload endpoint'); }
+		finally { setTimeout(() => { uploading = false; uploadProgress = 0; }, 600); }
+	}
+
+	let showSuccess, showError, showWarning, showInfo, showToast, showNotification;
+	$effect(() => {
+		if (notificationRef) {
+			showSuccess = notificationRef.showSuccess; showError = notificationRef.showError;
+			showWarning = notificationRef.showWarning; showInfo = notificationRef.showInfo;
+			showToast = notificationRef.showToast; showNotification = notificationRef.showNotification;
+		}
+	});
+
+	function fmtDuration(s) { const t = Math.round(s || 0); return `${Math.floor(t/60)}:${String(t%60).padStart(2,'0')}`; }
+	function fmtSize(b) { if (b >= 1e9) return (b/1e9).toFixed(1)+' GB'; if (b >= 1e6) return (b/1e6).toFixed(1)+' MB'; return Math.round(b/1024)+' KB'; }
 </script>
 
-<div class="min-h-screen font-sans" style="background:#1e1e1e; color:#c8d870;">
-	<!-- Main Content -->
-	<main class="mx-auto max-w-7xl px-6 py-8">
-		<div class="mx-auto max-w-md">
-			<div class="rounded-xl p-8" style="background:#2a2e1a; border:0.5px solid #4a5520;">
-				<div class="mb-8">
-					<h2 class="mb-2 text-2xl font-bold" style="color:#c8d870;">Welcome Back</h2>
-					<p class="text-sm" style="color:#7a8840;">Sign in to access your account</p>
-				</div>
-
-				{#if error}
-					<div class="mb-6 rounded-lg p-4" style="background:#c85050; color:#fff;">
-						{error}
-					</div>
-				{/if}
-
-				{#if success}
-					<div class="mb-6 rounded-lg p-4" style="background:#4a5520; color:#c8d870;">
-						{success}
-					</div>
-				{/if}
-
-				<form onsubmit={handleLogin} class="space-y-6">
-					<div>
-						<label for="email" class="mb-2 block text-sm font-medium" style="color:#c8d870;"
-							>Email Address</label
-						>
-						<input
-							id="email"
-							type="email"
-							bind:value={email}
-							placeholder="Enter your email"
-							class="w-full rounded-lg px-4 py-3 text-sm outline-none"
-							style="background:#1e2210; border:0.5px solid #4a5520; color:#c8d870; placeholder:#7a8840;"
-							required
-						/>
-					</div>
-
-					<div>
-						<label for="password" class="mb-2 block text-sm font-medium" style="color:#c8d870;"
-							>Password</label
-						>
-						<input
-							id="password"
-							type="password"
-							bind:value={password}
-							placeholder="Enter your password"
-							class="w-full rounded-lg px-4 py-3 text-sm outline-none"
-							style="background:#1e2210; border:0.5px solid #4a5520; color:#c8d870; placeholder:#7a8840;"
-							required
-						/>
-					</div>
-
-					<div class="flex items-center justify-between">
-						<a href="/forgot-password" class="text-sm" style="color:#7a8840;"
-							>Forgot your password?</a
-						>
-						<button
-							type="submit"
-							disabled={loading}
-							class="flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-colors"
-							style="background:#4a5520; color:#c8d870; border:none; cursor:pointer;"
-							onmouseenter={(e) => {
-								e.target.style.background = '#6b7a2e';
-							}}
-							onmouseleave={(e) => {
-								e.target.style.background = '#4a5520';
-							}}
-						>
-							{loading ? 'Signing in...' : 'Sign In'}
-						</button>
-					</div>
-				</form>
-
-				<div class="mt-8 text-center">
-					<p class="text-sm" style="color:#7a8840;">
-						Don't have an account?
-						<a href="/signup" class="font-medium" style="color:#4a5520;">Sign up</a>
-					</p>
-				</div>
+<div class="flex min-h-screen" style="background:#1e1e1e; font-family:var(--font-sans);">
+	<!-- Sidebar -->
+	<aside style="width:200px; flex-shrink:0; background:#222a10; border-right:0.5px solid #3a4018;">
+		<div style="padding:16px; border-bottom:0.5px solid #3a4018;">
+			<span style="font-size:14px; font-weight:500; color:#c8d870;">VideoAdmin</span>
+		</div>
+		<nav style="padding:12px 8px;">
+			{#each [{ key:'users', label:'Users' }, { key:'videos', label:'Videos' }, { key:'upload', label:'Upload' }] as tab}
+				<button onclick={() => (activeTab = tab.key)}
+					style="display:flex; align-items:center; width:100%; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-size:13px; font-weight:500; margin-bottom:2px; text-align:left; background:{activeTab===tab.key?'#4a5520':'transparent'}; color:{activeTab===tab.key?'#d6e08a':'#7a8840'};"
+					onmouseenter={(e) => { if (activeTab!==tab.key) e.currentTarget.style.background='#2a3010'; }}
+					onmouseleave={(e) => { if (activeTab!==tab.key) e.currentTarget.style.background='transparent'; }}
+				>{tab.label}</button>
+			{/each}
+		</nav>
+		<div style="padding:12px 8px; margin-top:8px; border-top:0.5px solid #3a4018;">
+			<div style="background:#1e2210; border:0.5px solid #3a4018; border-radius:6px; padding:10px 12px; margin-bottom:8px;">
+				<p style="font-size:10px; color:#5a6828; margin-bottom:2px;">Total videos</p>
+				<p style="font-size:20px; font-weight:500; color:#a0b840;">{loading ? '—' : regularVideos.length}</p>
+			</div>
+			<div style="background:#1e2210; border:0.5px solid #3a4018; border-radius:6px; padding:10px 12px;">
+				<p style="font-size:10px; color:#5a6828; margin-bottom:2px;">Total users</p>
+				<p style="font-size:20px; font-weight:500; color:#a0b840;">{loading ? '—' : users.length}</p>
 			</div>
 		</div>
+	</aside>
+
+	<main style="flex:1; min-width:0; padding:20px;">
+		<!-- Search row -->
+		<div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+			{#if activeTab === 'users'}
+				<input type="text" placeholder="Search users…" bind:value={userSearch}
+					style="flex:1; max-width:320px; height:32px; border-radius:6px; padding:0 12px; font-size:13px; outline:none; background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870;"
+					onfocus={(e) => e.target.style.borderColor='#6b7a2e'} onblur={(e) => e.target.style.borderColor='#4a5520'} />
+				<select bind:value={selectedRoleFilter} style="height:32px; border-radius:6px; padding:0 12px; font-size:13px; outline:none; background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870; cursor:pointer;">
+					<option value="">All Roles</option>
+					{#each roles as role}<option value={role.name}>{role.name}</option>{/each}
+				</select>
+				{#if selectedRoleFilter}<button onclick={() => (selectedRoleFilter='')} style="padding:4px 12px; font-size:12px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#a0b040; cursor:pointer;">Clear</button>{/if}
+			{:else if activeTab === 'videos'}
+				<input type="text" placeholder="Search videos…" bind:value={videoSearch}
+					style="flex:1; max-width:320px; height:32px; border-radius:6px; padding:0 12px; font-size:13px; outline:none; background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870;"
+					onfocus={(e) => e.target.style.borderColor='#6b7a2e'} onblur={(e) => e.target.style.borderColor='#4a5520'} />
+				<select bind:value={videoTagFilter} style="width:180px; height:32px; border-radius:6px; padding:0 8px; font-size:13px; outline:none; background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870; cursor:pointer;">
+					<option value="">All tags</option>
+					{#each availableTags as tag}<option value={tag}>{tag}</option>{/each}
+				</select>
+				<select bind:value={videoMergeFilter} style="width:140px; height:32px; border-radius:6px; padding:0 8px; font-size:13px; outline:none; background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870; cursor:pointer;">
+					<option value="">All videos</option>
+					<option value="merged">Merged</option>
+					<option value="unmerged">Not merged</option>
+				</select>
+				{#if videoTagFilter}<button onclick={() => (videoTagFilter='')} style="padding:4px 12px; font-size:12px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#a0b040; cursor:pointer;">Clear</button>{/if}
+			{/if}
+		</div>
+
+		{#if activeTab === 'users'}
+			<UsersPanel {users} {filteredUsers} {userSearch} {selectedRoleFilter} {roles} {loading} {openEditUser} {askDelete} />
+		{/if}
+		{#if activeTab === 'videos'}
+			<VideosPanel {filteredVideos} {loading} {playVideo} {openEditVideo} {askDelete} {getUserName} />
+		{/if}
+		{#if activeTab === 'upload'}
+			<UploadPanel key={uploadKey} {pendingFiles} {uploading} {uploadProgress} {isDragging} {handleFiles} {removeFile} {uploadFiles} {fmtSize} />
+		{/if}
 	</main>
 </div>
+
+<!-- Edit Modal -->
+{#if modal.open}
+	<div style="position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6);"
+		onclick={closeModal} onkeydown={(e) => e.key==='Escape' && closeModal()} tabindex="-1" role="dialog" aria-modal="true">
+		<div style="width:380px; background:#2a2e1a; border:0.5px solid #4a5520; border-radius:10px; padding:24px;"
+			onclick={(e) => e.stopPropagation()} role="document">
+			<h3 style="font-size:14px; font-weight:500; color:#c8d870; margin-bottom:20px;">{modal.type==='user' ? 'Edit user' : 'Edit video'}</h3>
+			<div style="display:flex; flex-direction:column; gap:14px;">
+				<div>
+					<label style="display:block; font-size:11px; color:#7a8840; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.05em;">Name</label>
+					<input bind:value={editName} style="width:100%; background:#1e2210; border:0.5px solid #4a5520; border-radius:6px; padding:8px 10px; font-size:13px; color:#c8d870; outline:none;"
+						onfocus={(e) => e.target.style.borderColor='#6b7a2e'} onblur={(e) => e.target.style.borderColor='#4a5520'} />
+				</div>
+				{#if modal.type === 'user'}
+					<div>
+						<label style="display:block; font-size:11px; color:#7a8840; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.05em;">Email</label>
+						<input bind:value={editEmail} type="email" style="width:100%; background:#1e2210; border:0.5px solid #4a5520; border-radius:6px; padding:8px 10px; font-size:13px; color:#c8d870; outline:none;"
+							onfocus={(e) => e.target.style.borderColor='#6b7a2e'} onblur={(e) => e.target.style.borderColor='#4a5520'} />
+					</div>
+					<div>
+						<label style="display:block; font-size:11px; color:#7a8840; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.05em;">Role</label>
+						<select bind:value={editRoleId} style="width:100%; background:#1e2210; border:0.5px solid #4a5520; border-radius:6px; padding:8px 10px; font-size:13px; color:#c8d870; outline:none;">
+							<option value={null}>— no role —</option>
+							{#each roles as r (r.id)}<option value={r.id}>{r.name}</option>{/each}
+						</select>
+					</div>
+				{:else}
+					<div>
+						<label style="display:block; font-size:11px; color:#7a8840; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.05em;">Tags (comma separated)</label>
+						<input bind:value={editTags} placeholder="tag1, tag2, tag3" style="width:100%; background:#1e2210; border:0.5px solid #4a5520; border-radius:6px; padding:8px 10px; font-size:13px; color:#c8d870; outline:none;"
+							onfocus={(e) => e.target.style.borderColor='#6b7a2e'} onblur={(e) => e.target.style.borderColor='#4a5520'} />
+					</div>
+				{/if}
+			</div>
+			<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+				<button onclick={closeModal} style="padding:7px 16px; font-size:13px; border-radius:6px; border:0.5px solid #4a5520; background:#1e2210; color:#a0b040; cursor:pointer;">Cancel</button>
+				<button onclick={saveEdit} style="padding:7px 16px; font-size:13px; font-weight:500; border-radius:6px; border:none; background:#6b7a2e; color:#fff; cursor:pointer;">Save changes</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Confirm Delete -->
+<ConfirmModal
+	open={confirmState.open}
+	title="Delete {confirmState.type}?"
+	message={confirmState.label}
+	confirmLabel="Delete"
+	onConfirm={doDelete}
+	onCancel={() => (confirmState = { open: false, type: '', id: null, label: '', merged: false })}
+/>
+
+<!-- Video Player -->
+{#if videoPlayer.open && videoPlayer.video}
+	<div style="position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.85);"
+		onclick={closeVideoPlayer} onkeydown={(e) => e.key==='Escape' && closeVideoPlayer()} tabindex="0" role="dialog" aria-modal="true">
+		<div style="width:100%; max-width:900px; margin:0 16px; background:#111; border-radius:10px; overflow:hidden; border:0.5px solid #3a4018;"
+			onclick={(e) => e.stopPropagation()} role="document">
+			<div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:0.5px solid #2a3010;">
+				<h3 style="font-size:14px; font-weight:500; color:#c8d870;">{videoPlayer.video.name}</h3>
+				<div style="display:flex; gap:8px; align-items:center;">
+					<button onclick={() => downloadVideo(videoPlayer.video)} style="background:#3a5520; border:0.5px solid #5a7a2e; color:#c8d870; cursor:pointer; font-size:12px; padding:4px 10px; border-radius:4px; font-weight:500;">Download</button>
+					<button onclick={closeVideoPlayer} style="background:none; border:none; color:#5a6828; cursor:pointer; font-size:20px; line-height:1;" onmouseenter={(e) => e.target.style.color='#c8d870'} onmouseleave={(e) => e.target.style.color='#5a6828'}>×</button>
+				</div>
+			</div>
+			<div style="aspect-ratio:16/9;">
+				<!-- svelte-ignore a11y_media_has_caption -->
+				<video controls autoplay style="width:100%; height:100%;" src={videoPlayer.video.b64 ? `data:video/mp4;base64,${videoPlayer.video.b64}` : `http://localhost:3000/${videoPlayer.video.path?.replace(/\\/g, '/')}`}></video>
+			</div>
+			<div style="padding:12px 16px; border-top:0.5px solid #2a3010; display:flex; gap:20px; flex-wrap:wrap;">
+				{#if videoPlayer.video.duration}<span style="font-size:12px; color:#7a8840;">Duration: <span style="color:#a0b040;">{fmtDuration(videoPlayer.video.duration)}</span></span>{/if}
+				{#if videoPlayer.video.size}<span style="font-size:12px; color:#7a8840;">Size: <span style="color:#a0b040;">{fmtSize(videoPlayer.video.size)}</span></span>{/if}
+				{#if Array.isArray(videoPlayer.video.tags) && videoPlayer.video.tags.length}
+					<div style="display:flex; gap:4px; flex-wrap:wrap;">
+						{#each videoPlayer.video.tags as tag}<span style="background:#3a4018; color:#a0b040; font-size:11px; padding:2px 7px; border-radius:3px;">{tag}</span>{/each}
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
+
+<Notification bind:notification bind:this={notificationRef} />
