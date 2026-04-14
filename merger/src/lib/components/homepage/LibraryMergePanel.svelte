@@ -316,7 +316,7 @@
 		<div class="mt-4">
 			<div class="mb-2 flex justify-between text-xs" style="color:#c8d870;">
 				<span>{mergeStatus || 'Processing...'}</span>
-				<span>{mergeProgress}%</span>
+				<span>{mergeProgress.toFixed(2)}%</span>
 			</div>
 			<div class="h-2 overflow-hidden rounded-full" style="background:#1e2210;">
 				<div
