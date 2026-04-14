@@ -9,6 +9,7 @@
 	let error = $state(null);
 	let editingVideo = $state(null);
 	let showEditModal = $state(false);
+	let authInitialized = $state(false);
 
 	// Notification system
 	let notification = $state({ message: '', type: 'info', visible: false });
@@ -17,14 +18,22 @@
 	onMount(() => {
 		// Check if user is authenticated, redirect if not
 		const unsubscribe = auth.subscribe((authState) => {
+			// Wait for auth to be initialized before making decisions
+			if (!authInitialized) {
+				authInitialized = true;
+				// Check if user is already authenticated after initialization
+				if (authState && authState.user) {
+					loadVideos();
+				}
+				return;
+			}
+
 			if (!authState || !authState.user) {
-				console.log('User not authenticated, redirecting to login');
 				goto('/login');
 				return;
 			}
 
 			if (authState) {
-				console.log('Auth updated in video page:', authState);
 				loadVideos();
 			}
 		});
@@ -37,12 +46,6 @@
 			loading = true;
 			error = null;
 
-			// Debug: Check auth state
-			console.log('Auth state:', JSON.stringify($auth, null, 2));
-			console.log('Current user:', JSON.stringify($auth.user, null, 2));
-			console.log('User ID:', $auth.user?.id);
-			console.log('Is authenticated:', $auth.isAuthenticated);
-
 			// Get all media (both regular and merged) from main endpoint
 			const response = await fetch('http://localhost:3000/api/media');
 
@@ -50,20 +53,11 @@
 				const data = await response.json();
 				const allVideos = data.data || [];
 
-				console.log('All videos from API:', allVideos);
-				console.log('Total videos count:', allVideos.length);
-
 				// Filter videos for current user
 				const currentUserId = $auth.user?.id || 8; // Temporarily hardcoded to 8 for testing
 				videos = allVideos.filter((video) => {
-					console.log(
-						`Video: ${video.name}, user_id: ${video.user_id}, current user: ${currentUserId}`
-					);
 					return video.user_id === currentUserId;
 				});
-
-				console.log('Filtered videos for user:', videos);
-				console.log('Filtered videos count:', videos.length);
 			} else {
 				throw new Error('Failed to fetch videos');
 			}
