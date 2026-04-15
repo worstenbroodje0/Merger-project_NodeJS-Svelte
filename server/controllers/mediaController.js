@@ -1,5 +1,5 @@
 const catchAsync = require('../utils/catchAsync');
-const { getMediaData, getMediaById, insertMedia, newId, getMergedMediaData, getMergedMediaById, insertMergedMedia, updateMediaById, deleteMediaById, updateMergedMediaById, deleteMergedMediaById } = require('../db');
+const { getMediaData, getMediaById, insertMedia, newId, getMergedMediaData, getMergedMediaById, insertMergedMedia, updateMediaById, deleteMediaById, updateMergedMediaById, deleteMergedMediaById, getMediaDataSafe, getMergedMediaDataSafe } = require('../db');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -61,6 +61,12 @@ function getVideoDimensions(filePath) {
 
 function generateThumbnail(videoPath, thumbPath) {
     return new Promise(resolve => {
+        // Check if video file exists and is accessible
+        if (!fs.existsSync(videoPath)) {
+            console.warn('[thumbnail] Video file does not exist:', videoPath);
+            return resolve(null);
+        }
+
         fs.mkdirSync(path.dirname(thumbPath), { recursive: true });
         const ff = spawn(FFMPEG, [
             '-y',
@@ -74,10 +80,17 @@ function generateThumbnail(videoPath, thumbPath) {
         let errOut = '';
         ff.stderr.on('data', d => (errOut += d));
         ff.on('close', code => {
-            if (code !== 0) console.warn('[thumbnail] FFmpeg failed:', errOut.slice(-300));
+            if (code !== 0) {
+                console.warn('[thumbnail] FFmpeg failed:', errOut.slice(-300));
+                // Clean up any partial file
+                try { if (fs.existsSync(thumbPath)) fs.unlinkSync(thumbPath); } catch (_) { }
+            }
             resolve(code === 0 ? thumbPath : null);
         });
-        ff.on('error', () => resolve(null));
+        ff.on('error', (err) => {
+            console.warn('[thumbnail] FFmpeg error:', err.message);
+            resolve(null);
+        });
     });
 }
 
@@ -139,7 +152,7 @@ async function buildSlate(slate, tmpFiles, videoWidth = 1920, videoHeight = 1080
         await runFFmpeg([
             '-y',
             '-f', 'lavfi', '-i', `color=c=${bgColor}:size=${videoWidth}x${videoHeight}:rate=30:duration=${duration}`,
-            '-f', 'image2', '-loop', '1', '-i', pngPath,
+            '-loop', '1', '-i', pngPath,
             '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
             '-filter_complex', `[1:v]scale=${scaleW}:-1[img];[0:v][img]overlay=x=(W-w)*${xPct}:y=(H-h)*${yPct}:shortest=1[v]`,
             '-map', '[v]', '-map', '2:a',
@@ -218,24 +231,30 @@ function buildOverlayFilters(overlays, uploadedImages, videoWidth, videoHeight) 
 // ═══════════════════════════════════════════════════════════════════ EXPORTS ══
 
 // ── GET all media ─────────────────────────────────────────────────────────────
+
+
+
 exports.getAllMedia = catchAsync(async (req, res) => {
     const [regularMedia, mergedMedia] = await Promise.all([
-        getMediaData(),
-        getMergedMediaData()
+        getMediaDataSafe(),
+        getMergedMediaDataSafe()
     ]);
     const all = [...regularMedia, ...mergedMedia];
     res.json({ status: 'success', results: all.length, data: all });
 });
 
-// Get only regular media
 exports.getRegularMedia = catchAsync(async (req, res) => {
-    const regularMedia = await getMediaData();
-    res.json({ status: 'success', results: regularMedia.length, data: regularMedia });
+    const regularMedia = await getMediaDataSafe();
+    const processedMedia = regularMedia.map(media => ({
+        ...media,
+        path: media.path ? media.path.replace(/\\/g, '/') : null,
+        url: media.path ? `/uploads/${media.path.split('\\').pop()}` : null
+    }));
+    res.json({ status: 'success', results: processedMedia.length, data: processedMedia });
 });
 
 // ── GET single media ──────────────────────────────────────────────────────────
 exports.getMedia = catchAsync(async (req, res) => {
-    console.log('[getMedia] params:', req.params, '| method:', req.method, '| url:', req.url);
     const entry = await getMediaById(parseInt(req.params.id, 10));
     if (!entry) return res.status(404).json({ error: 'Media not found' });
     res.json({ status: 'success', data: entry });
@@ -310,8 +329,24 @@ exports.mergeByIds = catchAsync(async (req, res) => {
         };
         // Handle intro image if provided
         if (req.files?.introImage?.[0]) {
-            console.log('[mergeByIds] Processing introImage:', req.files.introImage[0].path);
-            intro.logo = req.files.introImage[0].path;
+            const introImagePath = req.files.introImage[0].path;
+            console.log('[mergeByIds] Processing introImage:', introImagePath);
+
+            // Validate the image file exists and is accessible
+            if (!fs.existsSync(introImagePath)) {
+                console.error('[mergeByIds] Intro image file does not exist:', introImagePath);
+                return res.status(400).json({ error: 'Intro image file not found' });
+            }
+
+            // Check file size
+            const stats = fs.statSync(introImagePath);
+            if (stats.size === 0) {
+                console.error('[mergeByIds] Intro image file is empty:', introImagePath);
+                return res.status(400).json({ error: 'Intro image file is empty' });
+            }
+
+            console.log('[mergeByIds] Intro image validated, size:', stats.size, 'bytes');
+            intro.logo = introImagePath;
         }
     }
 
@@ -333,9 +368,24 @@ exports.mergeByIds = catchAsync(async (req, res) => {
         };
         // Handle outro image if provided
         if (req.files?.outroImage?.[0]) {
-            console.log('[mergeByIds] Processing outroImage:', req.files.outroImage[0].path);
-            outro.logo = req.files.outroImage[0].path;
-            console.log('[mergeByIds] Outro image:', outro.logo);
+            const outroImagePath = req.files.outroImage[0].path;
+            console.log('[mergeByIds] Processing outroImage:', outroImagePath);
+
+            // Validate the image file exists and is accessible
+            if (!fs.existsSync(outroImagePath)) {
+                console.error('[mergeByIds] Outro image file does not exist:', outroImagePath);
+                return res.status(400).json({ error: 'Outro image file not found' });
+            }
+
+            // Check file size
+            const stats = fs.statSync(outroImagePath);
+            if (stats.size === 0) {
+                console.error('[mergeByIds] Outro image file is empty:', outroImagePath);
+                return res.status(400).json({ error: 'Outro image file is empty' });
+            }
+
+            console.log('[mergeByIds] Outro image validated, size:', stats.size, 'bytes');
+            outro.logo = outroImagePath;
         }
     }
 
@@ -427,7 +477,12 @@ exports.mergeByIds = catchAsync(async (req, res) => {
             user_id: req.body.user_id || null,
         });
 
-        generateThumbnail(outputPath, path.join('thumbnails', fileName.replace(/\.[^/.]+$/, '') + '.jpg')).catch(() => { });
+        // Add a small delay before thumbnail generation to ensure file is ready
+        setTimeout(() => {
+            generateThumbnail(outputPath, path.join('thumbnails', fileName.replace(/\.[^/.]+$/, '') + '.jpg')).catch((err) => {
+                console.warn('[mergeByIds] Thumbnail generation failed:', err?.message || err);
+            });
+        }, 1000);
         res.status(201).json({ status: 'success', data: newMedia });
 
     } finally {

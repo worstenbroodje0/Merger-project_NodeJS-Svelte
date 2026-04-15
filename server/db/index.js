@@ -20,13 +20,35 @@ function newId() {
 
 // ── Media ─────────────────────────────────────────────────────────────────────
 
-
 async function getMediaData() {
   return db.select().from(media);
 }
+async function getMediaDataSafe() {
+  return db.select({
+    id: media.id,
+    name: media.name,
+    path: media.path,
+    duration: media.duration,
+    tags: media.tags,
+    uploadedAt: media.uploadedAt,
+    user_id: media.user_id,
+  }).from(media);
+}
+
+async function getMergedMediaDataSafe() {
+  return db.select({
+    id: merged_media.id,
+    name: merged_media.name,
+    path: merged_media.path,
+    duration: merged_media.duration,
+    tags: merged_media.tags,
+    uploadedAt: merged_media.uploadedAt,
+    user_id: merged_media.user_id,
+  }).from(merged_media);
+}
 
 async function getMediaById(id) {
-  const rows = await db.select().from(media).where(eq(media.id, parseInt(id, 10)));
+  const rows = await db.select().from(media).where(eq(media.id, Number(id)));
   return rows[0] ?? null;
 }
 
@@ -59,25 +81,36 @@ async function deleteMediaById(id) {
 // ── Users ─────────────────────────────────────────────────────────────────────
 
 /**
- * Drizzle 0.45 flattens JOIN results into a single object, so if both tables
- * have `id` and `name` columns the role columns silently overwrite the user
- * columns (or vice-versa) and you end up with nulls.
- *
- * Fix: alias the role columns to unique keys, then re-nest them in shapeUser().
+ * Safe query — used for all public/admin user listings.
+ * Does NOT include password, uuid, reset_token, reset_token_expires, or role_id.
  */
 function userQuery() {
   return db
     .select({
       id: users.id,
-      uuid: users.uuid,
+      name: users.name,
+      email: users.email,
+      created_at: users.created_at,
+      // Aliased to avoid collision with users.id / users.name
+      _role_id: roles.id,
+      _role_name: roles.name,
+    })
+    .from(users)
+    .leftJoin(roles, eq(users.role_id, roles.id));
+}
+
+/**
+ * Auth query — used ONLY for login/password checks.
+ * Includes password so bcrypt can compare it. Never send this to the frontend.
+ */
+function userAuthQuery() {
+  return db
+    .select({
+      id: users.id,
       name: users.name,
       email: users.email,
       password: users.password,
-      role_id: users.role_id,
-      reset_token: users.reset_token,
-      reset_token_expires: users.reset_token_expires,
       created_at: users.created_at,
-      // Aliased to avoid collision with users.id / users.name
       _role_id: roles.id,
       _role_name: roles.name,
     })
@@ -110,8 +143,12 @@ async function getUserById(id) {
   return shapeUser(rows[0] ?? null);
 }
 
+/**
+ * Used for login only — returns password hash for bcrypt comparison.
+ * Never return the result of this function directly to the frontend.
+ */
 async function getUserByEmail(email) {
-  const rows = await userQuery().where(eq(users.email, email));
+  const rows = await userAuthQuery().where(eq(users.email, email));
   return shapeUser(rows[0] ?? null);
 }
 
@@ -225,6 +262,7 @@ module.exports = {
   newId,
   // media
   getMediaData,
+  getMediaDataSafe,
   getMediaById,
   insertMedia,
   updateMediaById,
@@ -246,6 +284,7 @@ module.exports = {
   deleteRoleById,
   // merged media
   getMergedMediaData,
+  getMergedMediaDataSafe,
   getMergedMediaById,
   insertMergedMedia,
   updateMergedMediaById,

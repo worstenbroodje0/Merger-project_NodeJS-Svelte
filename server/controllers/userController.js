@@ -103,7 +103,7 @@ exports.register = catchAsync(async (req, res) => {
   res.status(201).json({
     status: 'success',
     data: {
-      user: { id: newUser.id, uuid: newUser.uuid, name: newUser.name, email: newUser.email, role_id: newUser.role_id, role: newUser.role },
+      user: { id: newUser.id, name: newUser.name, email: newUser.email, role: { name: newUser.role?.name } },
       token,
     },
   });
@@ -132,7 +132,7 @@ exports.login = catchAsync(async (req, res) => {
   res.json({
     status: 'success',
     data: {
-      user: { id: user.id, uuid: user.uuid, name: user.name, email: user.email, role_id: user.role_id, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, role: { name: user.role?.name } },
       token,
     },
   });

@@ -80,22 +80,35 @@
 		availableTags = Array.from(tagSet).sort();
 	});
 
+	function getAuthState() {
+		let state;
+		auth.subscribe((s) => (state = s))();
+		return state;
+	}
+
 	async function load() {
-		if (!(await auth.isAdmin()) && !(await auth.isEditor())) {
+		const authState = getAuthState();
+
+		if (!authState?.isAuthenticated) {
 			goto('/');
 			return;
 		}
 		loading = true;
 		try {
+			const headers = {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${authState?.token}`
+			};
+
 			const [uRes, vRes, rRes] = await Promise.all([
-				fetch(`${BASE}/admin/users`),
-				fetch(`${BASE}/media`),
-				fetch(`${BASE}/roles`).catch(() => ({ ok: false }))
+				fetch(`${BASE}/admin/users`, { headers }),
+				fetch(`${BASE}/media`, { headers }),
+				fetch(`${BASE}/roles`, { headers }).catch(() => ({ ok: false }))
 			]);
 			users = uRes.ok ? (await uRes.json()).data || [] : [];
 			const rawVideos = vRes.ok ? (await vRes.json()).data || [] : [];
 			try {
-				const regRes = await fetch(`${BASE}/media/regular`);
+				const regRes = await fetch(`${BASE}/media/regular`, { headers });
 				const regIds = regRes.ok
 					? new Set(((await regRes.json()).data || []).map((v) => v.id))
 					: new Set();
@@ -170,7 +183,10 @@
 				const isEdit = target.id !== undefined;
 				await fetch(isEdit ? `${BASE}/admin/users/${target.id}` : `${BASE}/admin/users`, {
 					method: isEdit ? 'PUT' : 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${getAuthState()?.token}`
+					},
 					body: JSON.stringify({ name: editName, email: editEmail, role_id: editRoleId })
 				});
 			} catch (_) {}
@@ -189,7 +205,10 @@
 			try {
 				const response = await fetch(`${BASE}/media/${target.id}`, {
 					method: 'PATCH',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${getAuthState()?.token}`
+					},
 					body: JSON.stringify({ name: editName, tags })
 				});
 				if (!response.ok) throw new Error('Failed to update video');
@@ -226,13 +245,19 @@
 				return;
 			}
 			try {
-				await fetch(`${BASE}/admin/users/${id}`, { method: 'DELETE' });
+				await fetch(`${BASE}/admin/users/${id}`, {
+					method: 'DELETE',
+					headers: { Authorization: `Bearer ${getAuthState()?.token}` }
+				});
 			} catch (_) {}
 			users = users.filter((u) => u.id !== id);
 			showSuccess?.('User deleted successfully');
 		} else {
 			try {
-				const response = await fetch(`${BASE}/media/${id}`, { method: 'DELETE' });
+				const response = await fetch(`${BASE}/media/${id}`, {
+					method: 'DELETE',
+					headers: { Authorization: `Bearer ${getAuthState()?.token}` }
+				});
 				if (!response.ok) throw new Error('Failed to delete video');
 			} catch {
 				showError?.('Failed to delete video');
@@ -262,7 +287,11 @@
 			if (uploadProgress < 85) uploadProgress = Math.min(uploadProgress + Math.random() * 10, 85);
 		}, 200);
 		try {
-			const res = await fetch(`${BASE}/media/upload`, { method: 'POST', body: fd });
+			const res = await fetch(`${BASE}/media/upload`, {
+				method: 'POST',
+				headers: { Authorization: `Bearer ${getAuthState()?.token}` },
+				body: fd
+			});
 			clearInterval(iv);
 			uploadProgress = 100;
 			if (res.ok) {

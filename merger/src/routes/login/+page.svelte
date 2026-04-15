@@ -33,8 +33,11 @@
 
 			if (data.status === 'success') {
 				showSuccess?.('Login successful! Redirecting...');
-				auth.login(data.token, data.data.user);
-				setTimeout(() => goto('/'), 1000);
+				auth.login(data.data.token, data.data.user);
+
+				setTimeout(() => {
+					goto('/');
+				}, 500);
 			} else {
 				showError?.(data.message || 'Login failed');
 			}

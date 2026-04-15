@@ -13,7 +13,7 @@ function createAuthStore() {
             const token = localStorage.getItem('token');
             const user = localStorage.getItem('user');
 
-            if (token && user) {
+            if (token && token !== 'undefined' && token !== 'null' && user) {
                 try {
                     const parsedUser = JSON.parse(user);
                     set({
@@ -25,6 +25,8 @@ function createAuthStore() {
                     console.error('Failed to parse user from localStorage:', error);
                     logout();
                 }
+            } else {
+                logout();
             }
         }
     }
