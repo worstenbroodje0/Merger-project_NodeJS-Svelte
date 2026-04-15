@@ -87,9 +87,9 @@ app.use(generalLimiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-// Input sanitization and validation (temporarily disabled for testing)
-// app.use(sanitizeInput);
-// app.use(validateRequest);
+// Input sanitization and validation
+app.use(sanitizeInput);
+app.use(validateRequest);
 
 // Security error handler
 app.use(securityErrorHandler);
@@ -108,7 +108,8 @@ app.use('/api/media', mediaRoutes);
 
 // Protected - must be logged in
 app.use('/api/roles', protect, require('./routes/rolesRoutes'));
-app.use('/api/mail', protect, require('./routes/mailRoutes'));
+// Mail routes - forgot password should be accessible without auth
+app.use('/api/mail', require('./routes/mailRoutes'));
 
 // Admin only — must be logged in AND have admin role
 app.use('/api/admin', protect, requireAdmin, require('./routes/adminRoutes'));

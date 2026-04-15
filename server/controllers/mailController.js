@@ -65,18 +65,28 @@ exports.forgotPassword = async (req, res) => {
 
 exports.resetPassword = async (req, res) => {
     const { token, password } = req.body;
-    if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
+    if (!token || !password) {
+        console.log('[resetPassword] Missing fields:', { token: !!token, password: !!password });
+        return res.status(400).json({ error: 'Token and password are required' });
+    }
 
     try {
         // Find user by reset token using Drizzle ORM
         const allUsers = await getUsersData();
-        const user = allUsers.find(u =>
-            u.reset_token === token &&
-            u.reset_token_expires &&
-            new Date(u.reset_token_expires) > new Date()
-        );
+        console.log('[resetPassword] All users:', allUsers);
+        console.log('[resetPassword] Looking for token:', token);
+        const user = allUsers.find(u => {
+            console.log('[resetPassword] Checking user:', u.email, 'has reset_token:', !!u.reset_token, 'token matches:', u.reset_token === token);
+            return u.reset_token === token &&
+                u.reset_token_expires &&
+                new Date(u.reset_token_expires) > new Date()
+        });
 
-        if (!user) return res.status(400).json({ error: 'Token is invalid or has expired' });
+        console.log('[resetPassword] Found user:', !!user);
+        if (!user) {
+            console.log('[resetPassword] Token validation failed');
+            return res.status(400).json({ error: 'Token is invalid or has expired' });
+        }
 
         const hashed = await bcrypt.hash(password, 12);
 

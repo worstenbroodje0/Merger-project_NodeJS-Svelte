@@ -5,14 +5,25 @@
 	import { auth } from '$lib/stores/auth.js';
 	import Notification from '$lib/components/Notification.svelte';
 
-	let name = '';
-	let email = '';
-	let password = '';
-	let confirmPassword = '';
-	let loading = false;
-	let notification = { message: '', type: 'info', visible: false };
+	let name = $state('');
+	let email = $state('');
+	let password = $state('');
+	let confirmPassword = $state('');
+	let loading = $state(false);
+	let notification = $state({ message: '', type: 'info', visible: false });
 	let notificationRef;
-	let showSuccess, showError;
+
+	function showSuccess(message) {
+		notification.message = message;
+		notification.type = 'success';
+		notification.visible = true;
+	}
+
+	function showError(message) {
+		notification.message = message;
+		notification.type = 'error';
+		notification.visible = true;
+	}
 
 	$effect(() => {
 		if (notificationRef) {

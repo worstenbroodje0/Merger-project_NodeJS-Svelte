@@ -9,14 +9,18 @@
 	let loading = $state(false);
 	let notification = $state({ message: '', type: 'info', visible: false });
 	let notificationRef;
-	let showSuccess, showError;
 
-	$effect(() => {
-		if (notificationRef) {
-			showSuccess = notificationRef.showSuccess;
-			showError = notificationRef.showError;
-		}
-	});
+	function showSuccess(message) {
+		notification.message = message;
+		notification.type = 'success';
+		notification.visible = true;
+	}
+
+	function showError(message) {
+		notification.message = message;
+		notification.type = 'error';
+		notification.visible = true;
+	}
 
 	async function handleLogin() {
 		loading = true;
