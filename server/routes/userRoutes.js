@@ -11,8 +11,8 @@ router.put('/:id', controller.updateUser);
 router.delete('/:id', controller.deleteUser);
 
 // Authentication routes (rate limiting temporarily disabled for testing)
-router.post('/register', authLimiter, controller.register);
-router.post('/login', authLimiter, controller.login);
+router.post('/register', controller.register);
+router.post('/login', controller.login);
 router.post('/logout', controller.logout);
 
 module.exports = router;

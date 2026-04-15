@@ -70,18 +70,28 @@ exports.deleteUser = catchAsync(async (req, res) => {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 exports.register = catchAsync(async (req, res) => {
+  console.log('[register] Request body:', req.body);
   const { name, email, password } = req.body;
 
-  if (!name || !email || !password)
+  if (!name || !email || !password) {
+    console.log('[register] Missing fields:', { name: !!name, email: !!email, password: !!password });
     return res.status(400).json({ status: 'error', message: 'Name, email, and password are required' });
+  }
 
+  console.log('[register] Checking for existing user with email:', email);
   const existingUser = await getUserByEmail(email);
-  if (existingUser)
+  console.log('[register] Existing user found:', !!existingUser);
+  if (existingUser) {
+    console.log('[register] User already exists with email:', email);
     return res.status(400).json({ status: 'error', message: 'User with this email already exists' });
+  }
 
+  console.log('[register] Getting user role...');
   const userRole = await getRoleByName('user');
+  console.log('[register] User role:', userRole);
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  console.log('[register] Hashed password:', hashedPassword);
   const newUser = await insertUser({
     name,
     email,

@@ -25,6 +25,7 @@
 	let searchQuery = $state('');
 
 	let mergePanelRef = $state(null);
+	let uploadTabRef = $state(null);
 	let showEditModal = $state(false);
 	let editingVideo = $state(null);
 
@@ -227,9 +228,52 @@
 		try {
 			uploadLoading = true;
 			uploadError = '';
+			const overlayConfig = uploadTabRef?.getOverlayConfig() ?? {};
 			const fd = new FormData();
 			uploadedFiles.forEach((f) => fd.append('videos', f));
 			fd.append('user_id', $auth.user?.id || null);
+
+			// Add intro/outro configuration
+			if (overlayConfig.showOverlayOptions) {
+				const {
+					showOverlayOptions,
+					overlayType,
+					introBackgroundColor,
+					introImage,
+					introDuration,
+					outroBackgroundColor,
+					outroImage,
+					outroDuration
+				} = overlayConfig;
+
+				if (showOverlayOptions) {
+					fd.append('showOverlayOptions', 'true');
+					fd.append('overlayType', overlayType);
+
+					if (overlayType === 'intro' || overlayType === 'both') {
+						fd.append(
+							'intro',
+							JSON.stringify({
+								backgroundColor: introBackgroundColor,
+								duration: introDuration
+							})
+						);
+						if (introImage) fd.append('introImage', introImage);
+					}
+
+					if (overlayType === 'outro' || overlayType === 'both') {
+						fd.append(
+							'outro',
+							JSON.stringify({
+								backgroundColor: outroBackgroundColor,
+								duration: outroDuration
+							})
+						);
+						if (outroImage) fd.append('outroImage', outroImage);
+					}
+				}
+			}
+
 			const authState = getAuthState();
 			const response = await fetch(`${BASE}/media/merge-upload`, {
 				method: 'POST',
@@ -351,7 +395,13 @@
 	<div class="flex" style="min-height:calc(100vh - 90px);">
 		<div class="min-w-0 flex-1 p-5">
 			{#if activeTab === 'upload'}
-				<UploadTab bind:uploadedFiles {uploadLoading} {uploadError} onMerge={uploadAndMerge} />
+				<UploadTab
+					bind:uploadedFiles
+					{uploadLoading}
+					{uploadError}
+					onMerge={uploadAndMerge}
+					bind:this={uploadTabRef}
+				/>
 			{:else if activeTab === 'library'}
 				{#if loading}
 					<div class="py-16 text-center"><p style="color:#7a8840;">Loading videos…</p></div>

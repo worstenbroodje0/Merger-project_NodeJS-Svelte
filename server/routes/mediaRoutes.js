@@ -36,7 +36,11 @@ router.post('/merge', protect, uploadLimiter, upload.fields([
     { name: 'overlayImage', maxCount: 1 }
 ]), controller.mergeByIds);
 
-router.post('/merge-upload', protect, uploadLimiter, upload.array('videos', 10), controller.mergeUploadedVideos);
+router.post('/merge-upload', protect, uploadLimiter, upload.fields([
+    { name: 'videos', maxCount: 10 },
+    { name: 'introImage', maxCount: 1 },
+    { name: 'outroImage', maxCount: 1 }
+]), controller.mergeUploadedVideos);
 router.patch('/:id', protect, controller.EditVideo);
 router.delete('/:id', protect, controller.DeleteVideo);
 router.post('/:id/overlay', protect, upload.array('images'), controller.applyOverlay);

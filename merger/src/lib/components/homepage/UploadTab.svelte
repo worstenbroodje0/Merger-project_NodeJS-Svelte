@@ -1,14 +1,50 @@
 <script>
-// @ts-nocheck
+	// @ts-nocheck
 	let {
 		uploadedFiles = $bindable([]),
 		uploadLoading = false,
 		uploadError = '',
-		onMerge,
+		onMerge
 	} = $props();
 
 	let uploadDragSrcIdx = $state(/** @type {number|null} */ (null));
 	let uploadDragOverIdx = $state(/** @type {number|null} */ (null));
+
+	// Intro/Outro overlay options
+	let overlayType = $state('intro');
+	let introBackgroundColor = $state('#000000');
+	let introImage = $state(/** @type {File|null} */ (null));
+	let introDuration = $state(3);
+	let outroBackgroundColor = $state('#000000');
+	let outroImage = $state(/** @type {File|null} */ (null));
+	let outroDuration = $state(3);
+
+	let showIntro = $derived(overlayType === 'intro' || overlayType === 'both');
+	let showOutro = $derived(overlayType === 'outro' || overlayType === 'both');
+	let showOverlayOptions = $derived(overlayType !== 'none');
+
+	export function getOverlayConfig() {
+		return {
+			showOverlayOptions,
+			overlayType,
+			introBackgroundColor,
+			introImage,
+			introDuration,
+			outroBackgroundColor,
+			outroImage,
+			outroDuration
+		};
+	}
+
+	function handleIntroImageSelect(event) {
+		const file = event.target.files[0];
+		if (file) introImage = file;
+	}
+
+	function handleOutroImageSelect(event) {
+		const file = event.target.files[0];
+		if (file) outroImage = file;
+	}
 
 	function handleFileSelect(event) {
 		const files = Array.from(event.target.files);
@@ -55,7 +91,8 @@
 <div class="max-w-2xl">
 	<h2 class="mb-1 text-sm font-medium" style="color:#c8d870;">Merge your own videos</h2>
 	<p class="mb-5 text-xs" style="color:#7a8840;">
-		Pick 2 or more video files from your device — they'll be merged in the order listed. Drag rows to reorder.
+		Pick 2 or more video files from your device — they'll be merged in the order listed. Drag rows
+		to reorder.
 	</p>
 
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
@@ -67,9 +104,18 @@
 		onmouseenter={(e) => (e.currentTarget.style.borderColor = '#8a9a30')}
 		onmouseleave={(e) => (e.currentTarget.style.borderColor = '#4a5520')}
 	>
-		<svg style="width:36px;height:36px;color:#5a6828;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-				d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+		<svg
+			style="width:36px;height:36px;color:#5a6828;"
+			fill="none"
+			viewBox="0 0 24 24"
+			stroke="currentColor"
+		>
+			<path
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				stroke-width="1.5"
+				d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
+			/>
 		</svg>
 		<div>
 			<p class="text-sm font-medium" style="color:#a0b040;">Click to select videos</p>
@@ -81,7 +127,10 @@
 
 	{#if uploadedFiles.length > 0}
 		<div class="mb-5 overflow-hidden rounded-lg" style="border:0.5px solid #4a5520;">
-			<div class="flex items-center justify-between px-4 py-2" style="background:#2a2e1a; border-bottom:0.5px solid #3a4018;">
+			<div
+				class="flex items-center justify-between px-4 py-2"
+				style="background:#2a2e1a; border-bottom:0.5px solid #3a4018;"
+			>
 				<h3 class="text-xs font-medium" style="color:#a0b040;">
 					{uploadedFiles.length} file{uploadedFiles.length === 1 ? '' : 's'} selected
 				</h3>
@@ -102,7 +151,9 @@
 						ondragover={(e) => onUploadDragOver(e, i)}
 						ondragend={onUploadDragEnd}
 					>
-						<span class="cursor-grab select-none text-base leading-none" style="color:#4a5520;">⠿</span>
+						<span class="cursor-grab text-base leading-none select-none" style="color:#4a5520;"
+							>⠿</span
+						>
 						<span
 							class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-medium"
 							style="background:#4a5520; color:#c8d870;"
@@ -111,7 +162,9 @@
 						</span>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-xs font-medium" style="color:#c8d870;">{file.name}</p>
-							<p class="text-xs" style="color:#5a6828;">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+							<p class="text-xs" style="color:#5a6828;">
+								{(file.size / 1024 / 1024).toFixed(1)} MB
+							</p>
 						</div>
 						<button
 							onclick={() => removeFile(i)}
@@ -128,16 +181,175 @@
 			</ol>
 		</div>
 
+		<!-- Intro/Outro overlay options -->
+		<div class="mb-5 rounded-lg" style="border:0.5px solid #4a5520; background:#1e2210;">
+			<div class="p-4">
+				<!-- Overlay type tabs -->
+				<p class="mb-2 text-xs font-medium" style="color:#a0b040;">Intro/outro options</p>
+				<div class="mb-4 flex gap-1">
+					{#each ['none', 'intro', 'outro', 'both'] as type}
+						<button
+							onclick={() => (overlayType = type)}
+							class="flex-1 rounded-md py-1.5 text-xs font-medium transition-colors"
+							style="
+								background:{overlayType === type ? '#4a5520' : '#2a3018'};
+								border:0.5px solid {overlayType === type ? '#6b7a2e' : '#3a4018'};
+								color:{overlayType === type ? '#d6e08a' : '#7a8840'};
+								cursor:pointer;
+							"
+						>
+							{type}
+						</button>
+					{/each}
+				</div>
+
+				<!-- Intro settings -->
+				{#if showIntro}
+					<div class="mb-4">
+						{#if overlayType === 'both'}
+							<p class="mb-2 text-xs font-medium" style="color:#a0b040;">Intro</p>
+						{/if}
+
+						<div class="mb-3">
+							<p class="mb-1.5 text-xs" style="color:#7a8840;">color</p>
+							<div class="flex items-center gap-2">
+								<input
+									type="color"
+									bind:value={introBackgroundColor}
+									class="h-16 w-16 shrink-0 rounded-md"
+									style="border:0.5px solid #4a5520; background:#1e2210; cursor:pointer; padding:2px;"
+								/>
+								<input
+									type="text"
+									bind:value={introBackgroundColor}
+									class="flex-1 rounded-md px-2 py-1.5 text-xs outline-none"
+									style="background:#2a3018; border:0.5px solid #3a4018; color:#c8d870;"
+									placeholder="#000000"
+								/>
+							</div>
+						</div>
+
+						<div class="mb-3">
+							<p class="mb-1.5 text-xs" style="color:#7a8840;">image</p>
+							<label
+								class="flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-xs transition-colors"
+								style="background:#2a3018; border:0.5px solid #3a4018; color:#7a8840;"
+								onmouseenter={(e) => (e.currentTarget.style.borderColor = '#6b7a2e')}
+								onmouseleave={(e) => (e.currentTarget.style.borderColor = '#3a4018')}
+							>
+								{#if introImage}
+									<span style="color:#a0b040;">{introImage.name}</span>
+								{:else}
+									Choose file...
+								{/if}
+								<input
+									type="file"
+									accept="image/*"
+									class="sr-only"
+									onchange={handleIntroImageSelect}
+								/>
+							</label>
+						</div>
+
+						<div class="mb-3">
+							<p class="mb-1.5 text-xs" style="color:#7a8840;">duration</p>
+							<input
+								type="number"
+								bind:value={introDuration}
+								min="1"
+								max="10"
+								class="w-full rounded-md px-3 py-2 text-xs outline-none"
+								style="background:#2a3018; border:0.5px solid #3a4018; color:#c8d870;"
+							/>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Outro settings -->
+				{#if showOutro}
+					<div class="mb-4">
+						{#if overlayType === 'both'}
+							<div class="mb-3" style="height:0.5px; background:#3a4018;"></div>
+							<p class="mb-2 text-xs font-medium" style="color:#a0b040;">Outro</p>
+						{/if}
+
+						<div class="mb-3">
+							<p class="mb-1.5 text-xs" style="color:#7a8840;">color</p>
+							<div class="flex items-center gap-2">
+								<input
+									type="color"
+									bind:value={outroBackgroundColor}
+									class="h-16 w-16 shrink-0 rounded-md"
+									style="border:0.5px solid #4a5520; background:#1e2210; cursor:pointer; padding:2px;"
+								/>
+								<input
+									type="text"
+									bind:value={outroBackgroundColor}
+									class="flex-1 rounded-md px-2 py-1.5 text-xs outline-none"
+									style="background:#2a3018; border:0.5px solid #3a4018; color:#c8d870;"
+									placeholder="#000000"
+								/>
+							</div>
+						</div>
+
+						<div class="mb-3">
+							<p class="mb-1.5 text-xs" style="color:#7a8840;">image</p>
+							<label
+								class="flex w-full cursor-pointer items-center rounded-md px-3 py-2 text-xs transition-colors"
+								style="background:#2a3018; border:0.5px solid #3a4018; color:#7a8840;"
+								onmouseenter={(e) => (e.currentTarget.style.borderColor = '#6b7a2e')}
+								onmouseleave={(e) => (e.currentTarget.style.borderColor = '#3a4018')}
+							>
+								{#if outroImage}
+									<span style="color:#a0b040;">{outroImage.name}</span>
+								{:else}
+									Choose file...
+								{/if}
+								<input
+									type="file"
+									accept="image/*"
+									class="sr-only"
+									onchange={handleOutroImageSelect}
+								/>
+							</label>
+						</div>
+
+						<div class="mb-3">
+							<p class="mb-1.5 text-xs" style="color:#7a8840;">duration</p>
+							<input
+								type="number"
+								bind:value={outroDuration}
+								min="1"
+								max="10"
+								class="w-full rounded-md px-3 py-2 text-xs outline-none"
+								style="background:#2a3018; border:0.5px solid #3a4018; color:#c8d870;"
+							/>
+						</div>
+					</div>
+				{/if}
+			</div>
+		</div>
+
 		<div class="flex flex-wrap items-center gap-2">
 			<button
 				onclick={onMerge}
 				disabled={uploadLoading || uploadedFiles.length < 2}
 				class="rounded-md px-5 py-2 text-sm font-medium text-white transition-colors"
-				style="background:{uploadLoading || uploadedFiles.length < 2 ? '#3a4018' : '#6b7a2e'}; border:none; cursor:{uploadLoading || uploadedFiles.length < 2 ? 'not-allowed' : 'pointer'}; color:{uploadLoading || uploadedFiles.length < 2 ? '#5a6828' : '#fff'};"
-				onmouseenter={(e) => { if (!uploadLoading && uploadedFiles.length >= 2) e.target.style.background = '#7a8a35'; }}
-				onmouseleave={(e) => { if (!uploadLoading && uploadedFiles.length >= 2) e.target.style.background = '#6b7a2e'; }}
+				style="background:{uploadLoading || uploadedFiles.length < 2
+					? '#3a4018'
+					: '#6b7a2e'}; border:none; cursor:{uploadLoading || uploadedFiles.length < 2
+					? 'not-allowed'
+					: 'pointer'}; color:{uploadLoading || uploadedFiles.length < 2 ? '#5a6828' : '#fff'};"
+				onmouseenter={(e) => {
+					if (!uploadLoading && uploadedFiles.length >= 2) e.target.style.background = '#7a8a35';
+				}}
+				onmouseleave={(e) => {
+					if (!uploadLoading && uploadedFiles.length >= 2) e.target.style.background = '#6b7a2e';
+				}}
 			>
-				{uploadLoading ? 'Uploading & merging…' : `Merge ${uploadedFiles.length} video${uploadedFiles.length === 1 ? '' : 's'}`}
+				{uploadLoading
+					? 'Uploading & merging…'
+					: `Merge ${uploadedFiles.length} video${uploadedFiles.length === 1 ? '' : 's'}`}
 			</button>
 			<button
 				onclick={() => (uploadedFiles = [])}

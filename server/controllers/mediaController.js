@@ -698,14 +698,16 @@ exports.applySlates = catchAsync(async (req, res) => {
 
 // Merge uploaded videos
 exports.mergeUploadedVideos = catchAsync(async (req, res) => {
-    const files = req.files;
+    const videoFiles = req.files?.videos || [];
+    const introImageFile = req.files?.introImage?.[0];
+    const outroImageFile = req.files?.outroImage?.[0];
 
     // Only attach user_id when genuinely logged in to satisfy the FK constraint
     const userId = req.body.user_id && req.body.user_id !== 'null'
         ? parseInt(req.body.user_id, 10)
         : null;
 
-    if (!files || files.length < 2) {
+    if (!videoFiles || videoFiles.length < 2) {
         return res.status(400).json({ error: 'At least 2 video files are required' });
     }
 
@@ -716,7 +718,7 @@ exports.mergeUploadedVideos = catchAsync(async (req, res) => {
         // Step 1: Move multer temp files into temp/ (never uploads/)
         //         so they are invisible to the library and cleaned up below.
         const sourcePaths = [];
-        for (const file of files) {
+        for (const file of videoFiles) {
             const dest = path.join(
                 'temp',
                 `_upload_${Date.now()}_${Math.random().toString(36).slice(2)}${path.extname(file.originalname)}`
@@ -756,15 +758,122 @@ exports.mergeUploadedVideos = catchAsync(async (req, res) => {
             concatPath,
         ]);
 
-        // Step 4: Write final file to outputs/
+        // Step 4: Handle intro/outro overlays if provided
+        let currentFile = concatPath;
+        let intro = null, outro = null;
+
+        // Handle intro data
+        if (req.body.intro) {
+            let introData = req.body.intro;
+            if (typeof introData === 'string') {
+                try {
+                    introData = JSON.parse(introData);
+                } catch (e) {
+                    return res.status(400).json({ error: 'Invalid intro format' });
+                }
+            }
+
+            intro = {
+                duration: introData.duration || 3,
+                backgroundColor: introData.backgroundColor || '#000000'
+            };
+
+            // Handle intro image if provided
+            if (req.files?.introImage?.[0]) {
+                const introImagePath = req.files.introImage[0].path;
+                console.log('[mergeUploadedVideos] Processing introImage:', introImagePath);
+
+                // Validate the image file exists and is accessible
+                if (!fs.existsSync(introImagePath)) {
+                    console.error('[mergeUploadedVideos] Intro image file does not exist:', introImagePath);
+                    return res.status(400).json({ error: 'Intro image file not found' });
+                }
+
+                // Check file size
+                const stats = fs.statSync(introImagePath);
+                if (stats.size === 0) {
+                    console.error('[mergeUploadedVideos] Intro image file is empty:', introImagePath);
+                    return res.status(400).json({ error: 'Intro image file is empty' });
+                }
+
+                console.log('[mergeUploadedVideos] Intro image validated, size:', stats.size, 'bytes');
+                intro.logo = introImagePath;
+            }
+        }
+
+        // Handle outro data
+        if (req.body.outro) {
+            let outroData = req.body.outro;
+            if (typeof outroData === 'string') {
+                try {
+                    outroData = JSON.parse(outroData);
+                } catch (e) {
+                    return res.status(400).json({ error: 'Invalid outro format' });
+                }
+            }
+
+            outro = {
+                duration: outroData.duration || 3,
+                backgroundColor: outroData.backgroundColor || '#000000'
+            };
+
+            // Handle outro image if provided
+            if (req.files?.outroImage?.[0]) {
+                const outroImagePath = req.files.outroImage[0].path;
+                console.log('[mergeUploadedVideos] Processing outroImage:', outroImagePath);
+
+                // Validate the image file exists and is accessible
+                if (!fs.existsSync(outroImagePath)) {
+                    console.error('[mergeUploadedVideos] Outro image file does not exist:', outroImagePath);
+                    return res.status(400).json({ error: 'Outro image file not found' });
+                }
+
+                // Check file size
+                const stats = fs.statSync(outroImagePath);
+                if (stats.size === 0) {
+                    console.error('[mergeUploadedVideos] Outro image file is empty:', outroImagePath);
+                    return res.status(400).json({ error: 'Outro image file is empty' });
+                }
+
+                console.log('[mergeUploadedVideos] Outro image validated, size:', stats.size, 'bytes');
+                outro.logo = outroImagePath;
+            }
+        }
+
+        // Step 5: Apply intro/outro slates if configured
+        if (intro || outro) {
+            const { width: vw, height: vh } = await getVideoDimensions(currentFile);
+            if (intro) {
+                const introFile = await buildSlate(intro, tmpFiles, vw, vh);
+                const withIntro = path.join('temp', `_upload_intro_${Date.now()}.mp4`);
+                tmpFiles.push(withIntro);
+                const iList = path.join('temp', `_upload_ilist_${Date.now()}.txt`);
+                tmpFiles.push(iList);
+                fs.writeFileSync(iList, `file '${path.resolve(introFile)}'\nfile '${path.resolve(currentFile)}'`);
+                await runFFmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', iList, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-c:a', 'aac', '-ar', '44100', '-ac', '2', '-movflags', '+faststart', withIntro]);
+                currentFile = withIntro;
+            }
+            if (outro) {
+                const outroFile = await buildSlate(outro, tmpFiles, vw, vh);
+                const withOutro = path.join('temp', `_upload_outro_${Date.now()}.mp4`);
+                tmpFiles.push(withOutro);
+                const oList = path.join('temp', `_upload_olist_${Date.now()}.txt`);
+                tmpFiles.push(oList);
+                fs.writeFileSync(oList, `file '${path.resolve(currentFile)}'\nfile '${path.resolve(outroFile)}'`);
+                await runFFmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', oList, '-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-c:a', 'aac', '-ar', '44100', '-ac', '2', '-movflags', '+faststart', withOutro]);
+                currentFile = withOutro;
+            }
+        }
+
+        // Step 6: Write final file to outputs/
         const outputName = `merge_${Date.now()}.mp4`;
         const outputPath = path.join('outputs', outputName);
-        fs.copyFileSync(concatPath, outputPath);
+        fs.copyFileSync(currentFile, outputPath);
 
         let duration = 0;
         try { duration = await getVideoDuration(outputPath); } catch (_) { }
 
-        // Step 5: Save ONLY the merged result - no insertMedia calls for source clips
+        // Step 7: Save ONLY the merged result - no insertMedia calls for source clips
         const mergedEntry = await insertMergedMedia({
             name: outputName,
             path: outputPath,
