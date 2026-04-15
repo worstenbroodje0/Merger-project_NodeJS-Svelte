@@ -84,7 +84,7 @@ const requireAdmin = async (req, res, next) => {
     try {
         const { getUserById } = require('../db');
         const user = await getUserById(req.user.id);
-        if (user?.role?.name !== 'admin') {
+        if (user?.role?.name !== 'admin' && user?.role.name !== 'editor') {
             return res.status(403).json({ status: 'error', message: 'Admin access required' });
         }
         next();
