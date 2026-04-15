@@ -78,7 +78,7 @@ app.use(cors({
 }));
 
 // Temporarily disable security headers for video testing
-// app.use(securityHeaders);
+app.use(securityHeaders);
 
 // General rate limiting
 app.use(generalLimiter);
