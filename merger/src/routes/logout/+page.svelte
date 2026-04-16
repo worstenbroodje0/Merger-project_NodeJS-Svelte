@@ -14,7 +14,7 @@
 
 	onMount(() => {
 		auth.logout();
-		showSuccess('Successfully logged out!');	
+		showSuccess('Successfully logged out!');
 		notification.visible = false;
 		window.location.href = '/';
 	});
