@@ -363,11 +363,20 @@
 			<div
 				style="background:#1e2210; border:0.5px solid #3a4018; border-radius:6px; padding:10px 12px; margin-bottom:8px;"
 			>
-				<p style="font-size:10px; color:#5a6828; margin-bottom:2px;">Total videos</p>
+				<p style="font-size:10px; color:#5a6828; margin-bottom:2px;">Normal videos</p>
 				<p style="font-size:20px; font-weight:500; color:#a0b840;">
 					{loading ? '—' : regularVideos.length}
 				</p>
 			</div>
+					<div
+				style="background:#1e2210; border:0.5px solid #3a4018; border-radius:6px; padding:10px 12px; margin-bottom:8px;"
+			>
+				<p style="font-size:10px; color:#5a6828; margin-bottom:2px;">Merged videos</p>
+				<p style="font-size:20px; font-weight:500; color:#a0b840;">
+					{loading ? '—' : mergedVideos.length}
+				</p>
+			</div>
+
 			<div
 				style="background:#1e2210; border:0.5px solid #3a4018; border-radius:6px; padding:10px 12px;"
 			>
