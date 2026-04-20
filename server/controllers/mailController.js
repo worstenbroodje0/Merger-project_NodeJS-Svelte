@@ -2,7 +2,7 @@
 const bcrypt = require('bcrypt');
 const mailService = require('../services/mailService');
 const db = require('../db');
-const { getUserByEmail, getUsersData, updateUserById } = require('../db');
+const { getUserByEmail, updateUserById, getUserByResetToken } = require('../db');
 const crypto = require('crypto');
 
 exports.sendMail = async (req, res) => {
@@ -51,7 +51,7 @@ exports.forgotPassword = async (req, res) => {
     });
 
     // Create reset link
-    const resetLink = `${process.env.CLIENT_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+   const resetLink = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
 
     // Send reset email
     try {
@@ -64,42 +64,38 @@ exports.forgotPassword = async (req, res) => {
 };
 
 exports.resetPassword = async (req, res) => {
-    const { token, password } = req.body;
-    if (!token || !password) {
-        console.log('[resetPassword] Missing fields:', { token: !!token, password: !!password });
-        return res.status(400).json({ error: 'Token and password are required' });
+    const { token, password, passwordConfirm } = req.body;
+
+    if (!token || !password || !passwordConfirm) {
+        return res.status(400).json({ status: 'error', message: 'Token, password, and password confirmation are required' });
+    }
+
+    if (password !== passwordConfirm) {
+        return res.status(400).json({ status: 'error', message: 'Passwords do not match' });
+    }
+
+    if (password.length < 6) {
+        return res.status(400).json({ status: 'error', message: 'Password must be at least 6 characters' });
     }
 
     try {
-        // Find user by reset token using Drizzle ORM
-        const allUsers = await getUsersData();
-        console.log('[resetPassword] All users:', allUsers);
-        console.log('[resetPassword] Looking for token:', token);
-        const user = allUsers.find(u => {
-            console.log('[resetPassword] Checking user:', u.email, 'has reset_token:', !!u.reset_token, 'token matches:', u.reset_token === token);
-            return u.reset_token === token &&
-                u.reset_token_expires &&
-                new Date(u.reset_token_expires) > new Date()
-        });
+        const user = await getUserByResetToken(token);
 
-        console.log('[resetPassword] Found user:', !!user);
-        if (!user) {
-            console.log('[resetPassword] Token validation failed');
-            return res.status(400).json({ error: 'Token is invalid or has expired' });
+        if (!user || !user.reset_token_expires || new Date(user.reset_token_expires) <= new Date()) {
+            return res.status(401).json({ status: 'error', message: 'Reset token is invalid or has expired' });
         }
 
         const hashed = await bcrypt.hash(password, 12);
 
-        // Update user password and clear reset token using Drizzle ORM
         await updateUserById(user.id, {
             password: hashed,
             reset_token: null,
             reset_token_expires: null
         });
 
-        res.status(200).json({ success: true });
+        res.status(200).json({ status: 'success', message: 'Password reset successfully' });
     } catch (err) {
-        console.error('Reset password error:', err);
-        res.status(500).json({ error: 'Something went wrong' });
+        console.error('[resetPassword] Error:', err);
+        res.status(500).json({ status: 'error', message: 'Something went wrong. Please try again.' });
     }
 };

@@ -9,6 +9,8 @@
 	let email = $state('');
 	let password = $state('');
 	let confirmPassword = $state('');
+	let showPassword = $state(false);
+	let showConfirmPassword = $state(false);
 	let loading = $state(false);
 	let notification = $state({ message: '', type: 'info', visible: false });
 	let notificationRef;
@@ -117,18 +119,56 @@
 						<label for="password" class="mb-2 block text-sm font-medium" style="color:#c8d870;"
 							>Password</label
 						>
-						<input
-							id="password"
-							type="password"
-							bind:value={password}
-							placeholder="Min 6 characters"
-							class="w-full rounded-lg px-4 py-3 text-sm outline-none"
-							style="background:#1e2210; border:0.5px solid #4a5520; color:#c8d870;"
-							onfocus={(e) => (e.target.style.borderColor = '#6b7a2e')}
-							onblur={(e) => (e.target.style.borderColor = '#4a5520')}
-							required
-							minlength="6"
-						/>
+						<div class="relative">
+							<input
+								id="password"
+								type={showPassword ? 'text' : 'password'}
+								bind:value={password}
+								placeholder="Min 6 characters"
+								class="w-full rounded-lg px-4 py-3 pr-12 text-sm outline-none"
+								style="background:#1e2210; border:0.5px solid #4a5520; color:#c8d870;"
+								onfocus={(e) => (e.target.style.borderColor = '#6b7a2e')}
+								onblur={(e) => (e.target.style.borderColor = '#4a5520')}
+								required
+								minlength="6"
+							/>
+							<button
+								type="button"
+								class="absolute top-1/2 right-3 -translate-y-1/2 transform text-sm"
+								style="color:#7a8840; background:none; border:none; cursor:pointer; padding:4px;"
+								onclick={() => (showPassword = !showPassword)}
+								aria-label={showPassword ? 'Hide password' : 'Show password'}
+							>
+								{#if showPassword}
+									<svg
+										width="16"
+										height="16"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										viewBox="0 0 24 24"
+									>
+										<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+										<circle cx="12" cy="12" r="3" />
+									</svg>
+								{:else}
+									<svg
+										width="16"
+										height="16"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										viewBox="0 0 24 24"
+									>
+										<path
+											d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"
+										/>
+										<path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+										<line x1="1" y1="1" x2="23" y2="23" />
+									</svg>
+								{/if}
+							</button>
+						</div>
 					</div>
 					<div>
 						<label
@@ -136,17 +176,55 @@
 							class="mb-2 block text-sm font-medium"
 							style="color:#c8d870;">Confirm Password</label
 						>
-						<input
-							id="confirmPassword"
-							type="password"
-							bind:value={confirmPassword}
-							placeholder="Confirm your password"
-							class="w-full rounded-lg px-4 py-3 text-sm outline-none"
-							style="background:#1e2210; border:0.5px solid #4a5520; color:#c8d870;"
-							onfocus={(e) => (e.target.style.borderColor = '#6b7a2e')}
-							onblur={(e) => (e.target.style.borderColor = '#4a5520')}
-							required
-						/>
+						<div class="relative">
+							<input
+								id="confirmPassword"
+								type={showConfirmPassword ? 'text' : 'password'}
+								bind:value={confirmPassword}
+								placeholder="Confirm your password"
+								class="w-full rounded-lg px-4 py-3 pr-12 text-sm outline-none"
+								style="background:#1e2210; border:0.5px solid #4a5520; color:#c8d870;"
+								onfocus={(e) => (e.target.style.borderColor = '#6b7a2e')}
+								onblur={(e) => (e.target.style.borderColor = '#4a5520')}
+								required
+							/>
+							<button
+								type="button"
+								class="absolute top-1/2 right-3 -translate-y-1/2 transform text-sm"
+								style="color:#7a8840; background:none; border:none; cursor:pointer; padding:4px;"
+								onclick={() => (showConfirmPassword = !showConfirmPassword)}
+								aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+							>
+								{#if showConfirmPassword}
+									<svg
+										width="16"
+										height="16"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										viewBox="0 0 24 24"
+									>
+										<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+										<circle cx="12" cy="12" r="3" />
+									</svg>
+								{:else}
+									<svg
+										width="16"
+										height="16"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										viewBox="0 0 24 24"
+									>
+										<path
+											d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"
+										/>
+										<path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" />
+										<line x1="1" y1="1" x2="23" y2="23" />
+									</svg>
+								{/if}
+							</button>
+						</div>
 					</div>
 					<button
 						type="submit"

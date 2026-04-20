@@ -118,6 +118,27 @@ function userAuthQuery() {
     .leftJoin(roles, eq(users.role_id, roles.id));
 }
 
+function userResetQuery() {
+  return db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      reset_token: users.reset_token,
+      reset_token_expires: users.reset_token_expires,
+      _role_id: roles.id,
+      _role_name: roles.name,
+    })
+    .from(users)
+    .leftJoin(roles, eq(users.role_id, roles.id));
+}
+
+// Add this new exported function
+async function getUserByResetToken(token) {
+  const rows = await userResetQuery().where(eq(users.reset_token, token));
+  return shapeUser(rows[0] ?? null);
+}
+
 /** Re-nest the aliased role columns into { role: { id, name } | null } */
 function shapeUser(row) {
   if (!row) return null;
@@ -275,6 +296,7 @@ module.exports = {
   insertUser,
   updateUserById,
   deleteUserById,
+  getUserByResetToken,
   // roles
   getRolesData,
   getRoleById,

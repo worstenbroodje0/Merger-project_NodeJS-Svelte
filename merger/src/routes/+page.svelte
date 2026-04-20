@@ -426,6 +426,7 @@
 				{:else}
 					<LibraryVideoGrid
 						{videos}
+						user={$auth.user}
 						bind:selectedIds
 						onDelete={askDeleteVideo}
 						onEdit={editVideo}

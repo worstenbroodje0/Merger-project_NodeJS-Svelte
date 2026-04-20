@@ -8,7 +8,8 @@
 		selectedIds = $bindable([]),
 		onDelete,
 		showEditModal = $bindable(false),
-		editingVideo = $bindable(null)
+		editingVideo = $bindable(null),
+		user = null
 	} = $props();
 
 	function toggleSelect(video) {
@@ -74,26 +75,35 @@
 						demo
 					</span>
 				{/if}
-				<button
-					onclick={(e) => {
-						e.stopPropagation();
-						onDelete(video._id || video.id);
-					}}
-					class="shrink-0 rounded px-2 py-1 text-xs transition-colors"
-					style="background:transparent; border:0.5px solid #4a5520; color:#7a8840;"
-					onmouseenter={(e) => {
-						e.target.style.background = '#3a1010';
-						e.target.style.borderColor = '#c85050';
-						e.target.style.color = '#c85050';
-					}}
-					onmouseleave={(e) => {
-						e.target.style.background = 'transparent';
-						e.target.style.borderColor = '#4a5520';
-						e.target.style.color = '#7a8840';
-					}}
-				>
-					🗑️
-				</button>
+				{#if user?.role?.name === 'admin' || user?.role?.name === 'editor'}
+					<button
+						onclick={(e) => {
+							e.stopPropagation();
+							onDelete(video._id || video.id);
+						}}
+						class="shrink-0 rounded px-2 py-1 text-xs transition-colors"
+						style="background:transparent; border:0.5px solid #4a5520; color:#7a8840;"
+						onmouseenter={(e) => {
+							e.target.style.background = '#3a1010';
+							e.target.style.borderColor = '#c85050';
+							e.target.style.color = '#c85050';
+						}}
+						onmouseleave={(e) => {
+							e.target.style.background = 'transparent';
+							e.target.style.borderColor = '#4a5520';
+							e.target.style.color = '#7a8840';
+						}}
+						aria-label="Delete video"
+					>
+						<svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20">
+							<path fill-rule="evenodd" d="M9 2a1 1 0 00-2 2v10a1 1 0 002 2v10a1 1 0 002-2z" />
+							<path
+								fill-rule="evenodd"
+								d="M10 18a3 3 0 100-6 3H3a1 1 0 00-1-1v-6a1 1 0 001-1h1a1 1 0 001 1v6a1 1 0 001 1h1a1 1 0 001 1v6a1 1 0 001-1z"
+							/>
+						</svg>
+					</button>
+				{/if}
 			</div>
 
 			{#if video.tags?.length}
