@@ -16,6 +16,7 @@
 
 	// Confirm delete
 	let confirmState = $state({ open: false, video: null });
+	let showLoginModal = $state(false);
 
 	let notification = $state({ message: '', type: 'info', visible: false });
 	let notificationRef;
@@ -43,7 +44,7 @@
 				return;
 			}
 			if (!authState?.user) {
-				goto('/login');
+				showLoginModal = true;
 				return;
 			}
 			loadVideos();
@@ -429,5 +430,40 @@
 	onConfirm={doDelete}
 	onCancel={() => (confirmState = { open: false, video: null })}
 />
+
+<!-- Login Required Modal -->
+{#if showLoginModal}
+	<div
+		class="bg-opacity-70 fixed inset-0 z-[1000] flex items-center justify-center bg-black"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="login-title"
+	>
+		<div
+			class="w-[90%] max-w-md rounded-lg border border-[#4a5520] bg-[#2a2e1a] p-6 text-center text-[#c8d870]"
+		>
+			<h2 id="login-title" class="mb-4 text-xl font-semibold text-[#a8d870]">Login Required</h2>
+			<p class="mb-6 leading-relaxed text-[#b8c860]">
+				You need to be logged in to access the video library.
+			</p>
+			<div class="flex justify-center gap-3">
+				<button
+					type="button"
+					class="rounded-md bg-[#5a8a2e] px-5 py-2.5 text-sm font-medium text-[#a8d870] transition-colors duration-200 hover:bg-[#6b9a3e]"
+					onclick={() => goto('/login')}
+				>
+					Go to Login
+				</button>
+				<button
+					type="button"
+					class="rounded-md border border-[#4a5520] bg-[#3a3e2a] px-5 py-2.5 text-sm font-medium text-[#b8c860] transition-colors duration-200 hover:bg-[#4a4e3a]"
+					onclick={() => goto('/')}
+				>
+					Go to Home
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <Notification bind:notification bind:this={notificationRef} />

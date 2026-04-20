@@ -93,6 +93,40 @@ const requireAdmin = async (req, res, next) => {
     }
 };
 
+/**
+ * Combined middleware that handles both authentication and admin checking.
+ * Verifies Bearer token and checks if user is admin/editor.
+ */
+const protectAndRequireAdmin = async (req, res, next) => {
+    // First, authenticate
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ status: 'error', message: 'Not authenticated' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        req.user = decoded; // { id, email }
+
+        // Then, check admin role
+        const { getUserById } = require('../db');
+        const user = await getUserById(req.user.id);
+        if (user?.role?.name !== 'admin' && user?.role.name !== 'editor') {
+            return res.status(403).json({ status: 'error', message: 'Admin access required' });
+        }
+        next();
+    } catch (err) {
+        console.error('protectAndRequireAdmin error:', err);
+        if (err.name === 'JsonWebTokenError') {
+            return res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
+        }
+        return res.status(500).json({ status: 'error', message: 'Authorization check failed', details: err.message });
+    }
+};
+
 // ── Rate Limiting ─────────────────────────────────────────────────────────────
 
 const createRateLimit = (windowMs, max, message) => {
@@ -221,6 +255,7 @@ module.exports = {
     sanitizeObject,
     protect,
     requireAdmin,
+    protectAndRequireAdmin,
     authLimiter,
     generalLimiter,
     uploadLimiter,

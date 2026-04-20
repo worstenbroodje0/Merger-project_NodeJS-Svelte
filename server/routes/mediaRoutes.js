@@ -28,7 +28,7 @@ router.get('/:id', controller.getMedia);
 
 // Protected routes - require authentication
 router.post('/upload', protect, uploadLimiter, upload.single('video'), controller.uploadVideo);
-router.post('/merge', protect, uploadLimiter, upload.fields([
+router.post('/merge', uploadLimiter, upload.fields([
     { name: 'introLogo', maxCount: 1 },
     { name: 'outroLogo', maxCount: 1 },
     { name: 'introImage', maxCount: 1 },
@@ -36,13 +36,13 @@ router.post('/merge', protect, uploadLimiter, upload.fields([
     { name: 'overlayImage', maxCount: 1 }
 ]), controller.mergeByIds);
 
-router.post('/merge-upload', protect, uploadLimiter, upload.fields([
+router.post('/merge-upload', uploadLimiter, upload.fields([
     { name: 'videos', maxCount: 10 },
     { name: 'introImage', maxCount: 1 },
     { name: 'outroImage', maxCount: 1 }
 ]), controller.mergeUploadedVideos);
-router.patch('/:id', protect, controller.EditVideo);
-router.delete('/:id', protect, controller.DeleteVideo);
+router.patch('/:id', controller.EditVideo);
+router.delete('/:id', controller.DeleteVideo);
 router.post('/:id/overlay', protect, upload.array('images'), controller.applyOverlay);
 router.post('/:id/slates', protect, upload.none(), controller.applySlates);
 

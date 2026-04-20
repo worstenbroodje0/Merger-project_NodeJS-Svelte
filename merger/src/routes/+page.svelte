@@ -378,7 +378,7 @@
 					? '#d6e08a'
 					: '#7a8840'}; cursor:pointer;">Upload</button
 			>
-			{#if $auth.user?.role?.name === 'admin' || $auth.user?.role?.name === 'editor'}
+			{#if $auth.user?.role?.name === 'admin' || $auth.user?.role?.name === 'editor' || $auth.user?.role?.name === 'user'}
 				<button
 					onclick={() => (activeTab = 'library')}
 					class="rounded-md px-5 py-1.5 text-sm font-medium"

@@ -13,6 +13,7 @@ const {
     securityErrorHandler,
     protect,
     requireAdmin,
+    protectAndRequireAdmin,
 } = require('./middleware/security');
 
 const app = express();
@@ -106,13 +107,13 @@ app.use('/api/users', require('./routes/userRoutes'));
 // Public media routes (home page access)
 app.use('/api/media', mediaRoutes);
 
-// Protected - must be logged in
-app.use('/api/roles', protect, require('./routes/rolesRoutes'));
+// Admin only - must be admin (includes authentication check)
+app.use('/api/roles', require('./routes/rolesRoutes'));
 // Mail routes - forgot password should be accessible without auth
 app.use('/api/mail', require('./routes/mailRoutes'));
 
 // Admin only — must be logged in AND have admin role
-app.use('/api/admin', protect, requireAdmin, require('./routes/adminRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
