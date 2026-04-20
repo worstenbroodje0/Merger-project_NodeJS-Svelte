@@ -95,13 +95,7 @@
 						}}
 						aria-label="Delete video"
 					>
-						<svg width="12" height="12" fill="currentColor" viewBox="0 0 20 20">
-							<path fill-rule="evenodd" d="M9 2a1 1 0 00-2 2v10a1 1 0 002 2v10a1 1 0 002-2z" />
-							<path
-								fill-rule="evenodd"
-								d="M10 18a3 3 0 100-6 3H3a1 1 0 00-1-1v-6a1 1 0 001-1h1a1 1 0 001 1v6a1 1 0 001 1h1a1 1 0 001 1v6a1 1 0 001-1z"
-							/>
-						</svg>
+						🗑️
 					</button>
 				{/if}
 			</div>
