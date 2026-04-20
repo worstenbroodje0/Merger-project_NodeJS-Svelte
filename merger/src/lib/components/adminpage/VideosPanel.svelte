@@ -11,9 +11,8 @@
 	}
 
 	function fmtSize(b) {
-		if (b >= 1e9) return (b / 1e9).toFixed(1) + ' GB';
-		if (b >= 1e6) return (b / 1e6).toFixed(1) + ' MB';
-		return Math.round(b / 1024) + ' KB';
+		if (!b || b === 0) return '0.00 MB';
+		return (b / (1024 * 1024)).toFixed(2) + ' MB';
 	}
 </script>
 
