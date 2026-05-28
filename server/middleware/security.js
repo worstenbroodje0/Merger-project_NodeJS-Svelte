@@ -4,31 +4,9 @@ const mongoSanitize = require('express-mongo-sanitize');
 const { body, validationResult } = require('express-validator');
 const hpp = require('hpp');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
 
-// SQL Injection Protection Middleware
-const sanitizeInput = (req, res, next) => {
-    if (req.query) {
-        Object.keys(req.query).forEach(key => {
-            if (typeof req.query[key] === 'string') {
-                req.query[key] = sanitizeString(req.query[key]);
-            }
-        });
-    }
-
-    if (req.params) {
-        Object.keys(req.params).forEach(key => {
-            if (typeof req.params[key] === 'string') {
-                req.params[key] = sanitizeString(req.params[key]);
-            }
-        });
-    }
-
-    if (req.body) {
-        sanitizeObject(req.body);
-    }
-
-    next();
-};
+// ── SQL Injection / Input Sanitization ───────────────────────────────────────
 
 const sanitizeString = (str) => {
     if (typeof str !== 'string') return str;
@@ -52,6 +30,46 @@ const sanitizeObject = (obj) => {
     });
 };
 
+const sanitizeInput = (req, res, next) => {
+    if (req.query) {
+        Object.keys(req.query).forEach(key => {
+            if (typeof req.query[key] === 'string') {
+                req.query[key] = sanitizeString(req.query[key]);
+            }
+        });
+    }
+    if (req.params) {
+        Object.keys(req.params).forEach(key => {
+            if (typeof req.params[key] === 'string') {
+                req.params[key] = sanitizeString(req.params[key]);
+            }
+        });
+    }
+    if (req.body) sanitizeObject(req.body);
+    next();
+};
+
+// ── Empty Field Validation ────────────────────────────────────────────────────
+
+/**
+ * Checks that all listed fields exist and are non-empty strings on req.body.
+ * Usage: requireFields('email', 'password')
+ */
+const requireFields = (...fields) => (req, res, next) => {
+    const missing = fields.filter(field => {
+        const val = req.body?.[field];
+        return val === undefined || val === null || String(val).trim() === '';
+    });
+
+    if (missing.length > 0) {
+        return res.status(400).json({
+            status: 'error',
+            message: `Missing or empty required field(s): ${missing.join(', ')}`,
+        });
+    }
+    next();
+};
+
 // ── JWT Auth Middleware ───────────────────────────────────────────────────────
 
 /**
@@ -67,77 +85,88 @@ const protect = (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
 
+    if (!token || token.trim() === '') {
+        return res.status(401).json({ status: 'error', message: 'Token is empty or malformed' });
+    }
+
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
         req.user = decoded; // { id, email }
         next();
-    } catch {
-        return res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
+    } catch (err) {
+        const message = err.name === 'TokenExpiredError'
+            ? 'Token has expired, please log in again'
+            : 'Invalid or expired token';
+        return res.status(401).json({ status: 'error', message });
     }
 };
 
+// ── Role Checking ─────────────────────────────────────────────────────────────
+
+const ROLES = {
+    ADMIN: 'admin',
+    EDITOR: 'editor',
+    USER: 'user',
+};
+
 /**
+ * Returns middleware that checks the DB user's role against allowedRoles.
  * Must be used after `protect`.
- * Re-fetches the user from the DB and checks their role — never trusts the token for role.
+ * Usage: requireRole('admin'), requireRole('admin', 'editor')
  */
-const requireAdmin = async (req, res, next) => {
+const requireRole = (...allowedRoles) => async (req, res, next) => {
+    if (!req.user?.id) {
+        return res.status(401).json({ status: 'error', message: 'Not authenticated' });
+    }
+
     try {
         const { getUserById } = require('../db');
         const user = await getUserById(req.user.id);
-        if (user?.role?.name !== 'admin' && user?.role.name !== 'editor') {
-            return res.status(403).json({ status: 'error', message: 'Admin access required' });
+
+        if (!user) {
+            return res.status(401).json({ status: 'error', message: 'User no longer exists' });
         }
+
+        const userRole = user?.role?.name;
+
+        if (!userRole || !allowedRoles.includes(userRole)) {
+            return res.status(403).json({
+                status: 'error',
+                message: `Access denied. Required role(s): ${allowedRoles.join(', ')}`,
+            });
+        }
+
+        req.userRole = userRole; // Attach role for downstream use
         next();
-    } catch {
+    } catch (err) {
+        console.error('requireRole error:', err);
         return res.status(500).json({ status: 'error', message: 'Authorization check failed' });
     }
 };
 
 /**
- * Combined middleware that handles both authentication and admin checking.
- * Verifies Bearer token and checks if user is admin/editor.
+ * Shorthand: must be admin or editor.
+ * Must be used after `protect`.
  */
-const protectAndRequireAdmin = async (req, res, next) => {
-    // First, authenticate
-    const authHeader = req.headers.authorization;
+const requireAdmin = requireRole(ROLES.ADMIN, ROLES.EDITOR);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ status: 'error', message: 'Not authenticated' });
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-        req.user = decoded; // { id, email }
-
-        // Then, check admin role
-        const { getUserById } = require('../db');
-        const user = await getUserById(req.user.id);
-        if (user?.role?.name !== 'admin' && user?.role.name !== 'editor') {
-            return res.status(403).json({ status: 'error', message: 'Admin access required' });
-        }
-        next();
-    } catch (err) {
-        console.error('protectAndRequireAdmin error:', err);
-        if (err.name === 'JsonWebTokenError') {
-            return res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
-        }
-        return res.status(500).json({ status: 'error', message: 'Authorization check failed', details: err.message });
-    }
-};
+/**
+ * Combined: authenticate + check admin/editor role in one step.
+ */
+const protectAndRequireAdmin = [
+    protect,
+    requireRole(ROLES.ADMIN, ROLES.EDITOR),
+];
 
 // ── Rate Limiting ─────────────────────────────────────────────────────────────
 
-const createRateLimit = (windowMs, max, message) => {
-    return rateLimit({
-        windowMs,
-        max,
-        message: { status: 'error', message },
-        standardHeaders: true,
-        legacyHeaders: false,
-    });
-};
+const createRateLimit = (windowMs, max, message) => rateLimit({
+    windowMs,
+    max,
+    message: { status: 'error', message },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 const authLimiter = createRateLimit(
     15 * 60 * 1000,
@@ -157,7 +186,59 @@ const uploadLimiter = createRateLimit(
     'Too many upload attempts, please try again later.'
 );
 
-// ── Request Validation ────────────────────────────────────────────────────────
+// ── Video Size Limit (100 MB per file) ───────────────────────────────────────
+
+const VIDEO_SIZE_LIMIT = 100 * 1024 * 1024; // 100 MB in bytes
+
+/**
+ * Multer file filter — rejects non-video MIME types.
+ */
+const videoFileFilter = (req, file, cb) => {
+    const allowedMimeTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: mp4, webm, mov, avi`), false);
+    }
+};
+
+/**
+ * Pre-upload middleware: rejects requests whose Content-Length header
+ * already exceeds the video size limit — stops the stream before multer runs.
+ */
+const enforceVideoSizeLimit = (req, res, next) => {
+    const contentLength = parseInt(req.headers['content-length'] || '0', 10);
+    if (contentLength > VIDEO_SIZE_LIMIT) {
+        return res.status(413).json({
+            status: 'error',
+            message: `File too large. Maximum allowed size is ${VIDEO_SIZE_LIMIT / (1024 * 1024)} MB.`,
+        });
+    }
+    next();
+};
+
+/**
+ * Multer error handler — catches MulterError (e.g. LIMIT_FILE_SIZE) and
+ * returns a clean JSON response instead of crashing.
+ * Place after any route that uses multer.
+ */
+const handleMulterError = (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({
+                status: 'error',
+                message: `File too large. Maximum allowed size is ${VIDEO_SIZE_LIMIT / (1024 * 1024)} MB.`,
+            });
+        }
+        return res.status(400).json({ status: 'error', message: `Upload error: ${err.message}` });
+    }
+    if (err?.message?.startsWith('Unsupported file type')) {
+        return res.status(415).json({ status: 'error', message: err.message });
+    }
+    next(err);
+};
+
+// ── XSS / Request Validation ──────────────────────────────────────────────────
 
 const validateRequest = (req, res, next) => {
     const suspiciousPatterns = [
@@ -165,7 +246,7 @@ const validateRequest = (req, res, next) => {
         /javascript:/gi,
         /on\w+\s*=/gi,
         /eval\(/gi,
-        /expression\(/gi
+        /expression\(/gi,
     ];
 
     const checkValue = (value) => {
@@ -184,7 +265,6 @@ const validateRequest = (req, res, next) => {
     if (!checkValue(req.query)) {
         return res.status(400).json({ status: 'error', message: 'Invalid request parameters detected' });
     }
-
     if (!checkValue(req.body)) {
         return res.status(400).json({ status: 'error', message: 'Invalid request body detected' });
     }
@@ -193,7 +273,7 @@ const validateRequest = (req, res, next) => {
 };
 
 // ── Security Headers ──────────────────────────────────────────────────────────
-// Security headers middleware - relaxed for video streaming
+
 const securityHeaders = helmet({
     contentSecurityPolicy: {
         directives: {
@@ -216,25 +296,40 @@ const securityHeaders = helmet({
     crossOriginResourcePolicy: false,
 });
 
-// ── Validation Helpers ────────────────────────────────────────────────────────
+// ── Validation Helpers (express-validator) ────────────────────────────────────
 
 const validateInput = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        return res.status(400).json({ status: 'error', message: 'Validation failed', errors: errors.array() });
+        return res.status(400).json({
+            status: 'error',
+            message: 'Validation failed',
+            errors: errors.array(),
+        });
     }
     next();
 };
 
 const userValidationRules = [
-    body('name').trim().isLength({ min: 2, max: 50 }).escape().withMessage('Name must be between 2 and 50 characters'),
-    body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    body('name').trim().notEmpty().withMessage('Name is required')
+        .isLength({ min: 2, max: 50 }).escape().withMessage('Name must be between 2 and 50 characters'),
+    body('email').notEmpty().withMessage('Email is required')
+        .isEmail().normalizeEmail().withMessage('Please provide a valid email'),
+    body('password').notEmpty().withMessage('Password is required')
+        .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
+];
+
+const loginValidationRules = [
+    body('email').notEmpty().withMessage('Email is required')
+        .isEmail().normalizeEmail().withMessage('Please provide a valid email'),
+    body('password').notEmpty().withMessage('Password is required'),
 ];
 
 const mediaValidationRules = [
-    body('name').trim().isLength({ min: 1, max: 255 }).escape().withMessage('Name is required'),
-    body('tags').optional().trim().isLength({ max: 500 }).escape().withMessage('Tags must be less than 500 characters')
+    body('name').trim().notEmpty().withMessage('Name is required')
+        .isLength({ min: 1, max: 255 }).escape().withMessage('Name must be under 255 characters'),
+    body('tags').optional().trim()
+        .isLength({ max: 500 }).escape().withMessage('Tags must be less than 500 characters'),
 ];
 
 // ── Error Handler ─────────────────────────────────────────────────────────────
@@ -250,19 +345,42 @@ const securityErrorHandler = (err, req, res, next) => {
 };
 
 module.exports = {
+    // Sanitization
     sanitizeInput,
     sanitizeString,
     sanitizeObject,
+
+    // Auth
     protect,
+    requireRole,
     requireAdmin,
     protectAndRequireAdmin,
+
+    // Field validation
+    requireFields,
+
+    // Rate limiting
     authLimiter,
     generalLimiter,
     uploadLimiter,
+
+    // Video size enforcement
+    VIDEO_SIZE_LIMIT,
+    videoFileFilter,
+    enforceVideoSizeLimit,
+    handleMulterError,
+
+    // Request/input validation
     validateRequest,
     validateInput,
+    userValidationRules,
+    loginValidationRules,
+    mediaValidationRules,
+
+    // Headers & errors
     securityHeaders,
     securityErrorHandler,
-    userValidationRules,
-    mediaValidationRules,
+
+    // Role constants
+    ROLES,
 };

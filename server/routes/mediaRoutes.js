@@ -3,7 +3,14 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const controller = require('../controllers/mediaController');
-const { uploadLimiter, protect } = require('../middleware/security');
+const {
+    uploadLimiter,
+    protect,
+    enforceVideoSizeLimit,
+    videoFileFilter,
+    handleMulterError,
+    VIDEO_SIZE_LIMIT
+} = require('../middleware/security');
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -18,7 +25,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage,
-    limits: { fileSize: 100 * 1024 * 1024 }
+    limits: { fileSize: VIDEO_SIZE_LIMIT },
+    fileFilter: videoFileFilter
 });
 
 // Public routes - no authentication required
@@ -27,23 +35,24 @@ router.get('/regular', controller.getRegularMedia);
 router.get('/:id', controller.getMedia);
 
 // Protected routes - require authentication
-router.post('/upload', protect, uploadLimiter, upload.single('video'), controller.uploadVideo);
-router.post('/merge', uploadLimiter, upload.fields([
+router.post('/upload', protect, enforceVideoSizeLimit, upload.single('video'), handleMulterError, controller.uploadVideo);
+router.post('/merge', uploadLimiter, enforceVideoSizeLimit, upload.fields([
     { name: 'introLogo', maxCount: 1 },
     { name: 'outroLogo', maxCount: 1 },
     { name: 'introImage', maxCount: 1 },
     { name: 'outroImage', maxCount: 1 },
     { name: 'overlayImage', maxCount: 1 }
-]), controller.mergeByIds);
+]), handleMulterError, controller.mergeByIds);
 
-router.post('/merge-upload', uploadLimiter, upload.fields([
+router.post('/merge-upload', uploadLimiter, enforceVideoSizeLimit, upload.fields([
     { name: 'videos', maxCount: 10 },
     { name: 'introImage', maxCount: 1 },
     { name: 'outroImage', maxCount: 1 }
-]), controller.mergeUploadedVideos);
-router.patch('/:id', controller.EditVideo);
-router.delete('/:id', controller.DeleteVideo);
-router.post('/:id/overlay', protect, upload.array('images'), controller.applyOverlay);
+]), handleMulterError, controller.mergeUploadedVideos);
+
+router.patch('/:id', protect, controller.EditVideo);
+router.delete('/:id', protect, controller.DeleteVideo);
+router.post('/:id/overlay', protect, enforceVideoSizeLimit, upload.array('images'), handleMulterError, controller.applyOverlay);
 router.post('/:id/slates', protect, upload.none(), controller.applySlates);
 
 module.exports = router;

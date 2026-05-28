@@ -85,8 +85,8 @@ app.use(securityHeaders);
 app.use(generalLimiter);
 
 // Body parsing MUST come before sanitization so req.body exists
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // Input sanitization and validation
 app.use(sanitizeInput);
