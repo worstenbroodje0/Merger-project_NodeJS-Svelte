@@ -44,9 +44,11 @@
 					goto('/');
 				}, 500);
 			} else {
+				console.error('Login failed:', data.message);
 				showError?.(data.message || 'Login failed');
 			}
-		} catch {
+		} catch (err) {
+			console.error('Server connection error:', err);
 			showError?.('Failed to connect to server. Please try again.');
 		} finally {
 			loading = false;
@@ -135,7 +137,8 @@
 					<div class="flex items-center justify-between">
 						<a href="/forgot-password" class="text-sm" style="color:#7a8840;">
 							Forgot your password?
-						</a>
+						</a> 
+						
 						<button
 							type="submit"
 							disabled={loading}
@@ -152,10 +155,11 @@
 						</button>
 					</div>
 				</form>
+				
 
 				<div class="mt-8 text-center">
 					<p class="text-sm" style="color:#7a8840;">
-						Don't have an account?
+						Don't have an account? 
 						<a href="/signup" class="font-medium" style="color:#a0b040;">Sign up</a>
 					</p>
 				</div>

@@ -181,14 +181,23 @@
 		if (type === 'user') {
 			try {
 				const isEdit = target.id !== undefined;
-				await fetch(isEdit ? `${BASE}/admin/users/${target.id}` : `${BASE}/admin/users`, {
-					method: isEdit ? 'PUT' : 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: `Bearer ${getAuthState()?.token}`
-					},
-					body: JSON.stringify({ name: editName, email: editEmail, role_id: editRoleId })
-				});
+				const response = await fetch(
+					isEdit ? `${BASE}/admin/users/${target.id}` : `${BASE}/admin/users`,
+					{
+						method: isEdit ? 'PUT' : 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+							Authorization: `Bearer ${getAuthState()?.token}`
+						},
+						body: JSON.stringify({ name: editName, email: editEmail, role_id: editRoleId })
+					}
+				);
+				if (response.status === 401) {
+					auth.logout();
+					showError?.('Your session has expired. Please log in again.');
+					return;
+				}
+				if (!response.ok) throw new Error('Failed to save user');
 			} catch (_) {}
 			const matchedRole = roles.find((r) => r.id === Number(editRoleId)) ?? null;
 			users = users.map((u) =>
@@ -211,6 +220,11 @@
 					},
 					body: JSON.stringify({ name: editName, tags })
 				});
+				if (response.status === 401) {
+					auth.logout();
+					showError?.('Your session has expired. Please log in again.');
+					return;
+				}
 				if (!response.ok) throw new Error('Failed to update video');
 			} catch {
 				showError?.('Failed to update video');
@@ -270,7 +284,7 @@
 
 	function handleFiles(e) {
 		const files = Array.from(e.target?.files || e.dataTransfer?.files || []);
-		pendingFiles = files.length > 0 ? [files[0]] : [];
+		pendingFiles = files.length > 0 ? files : [];
 		if (e.target) e.target.value = '';
 	}
 	function removeFile(i) {
@@ -281,30 +295,92 @@
 		if (!pendingFiles.length) return;
 		uploading = true;
 		uploadProgress = 0;
-		const fd = new FormData();
-		pendingFiles.forEach((f) => fd.append('video', f));
+
+		const totalFiles = pendingFiles.length;
+		let uploadedCount = 0;
+		let failedFiles = [];
+		const authState = getAuthState();
+
+		console.log('[DEBUG] Upload starting:', {
+			totalFiles,
+			pendingFiles: pendingFiles.map((f) => f.name),
+			authState: authState
+				? { isAuthenticated: authState.isAuthenticated, hasToken: !!authState.token }
+				: null
+		});
+
 		const iv = setInterval(() => {
-			if (uploadProgress < 85) uploadProgress = Math.min(uploadProgress + Math.random() * 10, 85);
+			const progress = (uploadedCount / totalFiles) * 85;
+			if (uploadProgress < progress)
+				uploadProgress = Math.min(uploadProgress + Math.random() * 5, progress);
 		}, 200);
+
 		try {
-			const res = await fetch(`${BASE}/media/upload`, {
-				method: 'POST',
-				headers: { Authorization: `Bearer ${getAuthState()?.token}` },
-				body: fd
-			});
+			for (const file of pendingFiles) {
+				console.log(`[DEBUG] Uploading file: ${file.name}, size: ${file.size}`);
+
+				const fd = new FormData();
+				fd.append('video', file);
+
+				const res = await fetch(`${BASE}/media/upload`, {
+					method: 'POST',
+					headers: { Authorization: `Bearer ${authState?.token}` },
+					body: fd
+				});
+
+				console.log(`[DEBUG] Upload response for ${file.name}:`, {
+					status: res.status,
+					ok: res.ok,
+					statusText: res.statusText
+				});
+
+				if (res.ok) {
+					uploadedCount++;
+					console.log(`[DEBUG] Successfully uploaded: ${file.name}`);
+				} else if (res.status === 401) {
+					// Token expired - logout and show login popup
+					console.log('[DEBUG] Token expired, logging out...');
+					auth.logout();
+					showError?.('Your session has expired. Please log in again.');
+					// Stop uploading and break out of the loop
+					throw new Error('Token expired');
+				} else {
+					const errorText = await res.text();
+					console.error(`[DEBUG] Upload failed for ${file.name}:`, errorText);
+					failedFiles.push(file.name);
+				}
+			}
+
 			clearInterval(iv);
 			uploadProgress = 100;
-			if (res.ok) {
-				showSuccess?.('Video uploaded successfully!');
+
+			if (uploadedCount === totalFiles) {
+				showSuccess?.(
+					`Successfully uploaded ${uploadedCount} video${uploadedCount !== 1 ? 's' : ''}!`
+				);
+			} else if (uploadedCount > 0) {
+				showSuccess?.(
+					`Uploaded ${uploadedCount} of ${totalFiles} videos. Failed: ${failedFiles.join(', ')}`
+				);
+			} else {
+				showError?.(`Failed to upload any videos. Failed: ${failedFiles.join(', ')}`);
+			}
+
+			pendingFiles = [];
+			uploadKey++;
+			await load();
+		} catch (error) {
+			clearInterval(iv);
+			console.error('[DEBUG] Upload error:', error);
+
+			if (error.message === 'Token expired') {
+				// Don't show additional error - the auth.logout and showError already handled it
+				// Just clean up the upload state
 				pendingFiles = [];
 				uploadKey++;
-				await load();
 			} else {
-				showError?.('Upload failed');
+				showError?.(`Upload failed: ${error.message}`);
 			}
-		} catch {
-			clearInterval(iv);
-			showError?.('Upload failed — check your upload endpoint');
 		} finally {
 			setTimeout(() => {
 				uploading = false;
@@ -368,7 +444,7 @@
 					{loading ? '—' : regularVideos.length}
 				</p>
 			</div>
-					<div
+			<div
 				style="background:#1e2210; border:0.5px solid #3a4018; border-radius:6px; padding:10px 12px; margin-bottom:8px;"
 			>
 				<p style="font-size:10px; color:#5a6828; margin-bottom:2px;">Merged videos</p>

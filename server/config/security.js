@@ -11,7 +11,7 @@ const securityConfig = {
             standardHeaders: true,
             legacyHeaders: false,
         },
-        
+
         // General API endpoints
         general: {
             windowMs: 15 * 60 * 1000, // 15 minutes
@@ -20,7 +20,7 @@ const securityConfig = {
             standardHeaders: true,
             legacyHeaders: false,
         },
-        
+
         // Upload endpoints
         upload: {
             windowMs: 60 * 60 * 1000, // 1 hour
@@ -63,7 +63,6 @@ const securityConfig = {
 
     // File upload security
     uploads: {
-        maxFileSize: 100 * 1024 * 1024, // 100MB
         allowedVideoTypes: [
             'video/mp4',
             'video/webm',
