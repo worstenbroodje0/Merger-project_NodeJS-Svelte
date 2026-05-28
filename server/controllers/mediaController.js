@@ -31,15 +31,42 @@ function runFFmpeg(args) {
 
 function getVideoDuration(filePath) {
     return new Promise((resolve, reject) => {
+        console.log('[FFprobe] Getting duration for:', filePath);
+        console.log('[FFprobe] FFprobe path:', FFPROBE);
+
+        // Check if file exists
+        if (!fs.existsSync(filePath)) {
+            return reject(new Error(`File does not exist: ${filePath}`));
+        }
+
         const ff = spawn(FFPROBE, ['-v', 'quiet', '-print_format', 'json', '-show_format', filePath]);
         let out = '';
+        let errOut = '';
+
         ff.stdout.on('data', d => (out += d));
+        ff.stderr.on('data', d => (errOut += d));
+
         ff.on('close', code => {
-            if (code !== 0) return reject(new Error('FFprobe exited non-zero'));
-            try { resolve(Math.round(parseFloat(JSON.parse(out).format.duration) || 0)); }
-            catch { reject(new Error('FFprobe parse error')); }
+            console.log('[FFprobe] Exit code:', code);
+            console.log('[FFprobe] Stdout:', out);
+            console.log('[FFprobe] Stderr:', errOut);
+
+            if (code !== 0) return reject(new Error(`FFprobe exited ${code}: ${errOut}`));
+            try {
+                const parsed = JSON.parse(out);
+                const duration = Math.round(parseFloat(parsed.format.duration) || 0);
+                console.log('[FFprobe] Duration:', duration);
+                resolve(duration);
+            }
+            catch (e) {
+                console.log('[FFprobe] Parse error:', e);
+                reject(new Error(`FFprobe parse error: ${e.message}`));
+            }
         });
-        ff.on('error', err => reject(err));
+        ff.on('error', err => {
+            console.log('[FFprobe] Process error:', err);
+            reject(err);
+        });
     });
 }
 
@@ -267,23 +294,59 @@ exports.uploadVideo = catchAsync(async (req, res) => {
     const { originalname, path: tempPath } = req.file;
     const uniqueFilename = `${Date.now()}_${originalname}`;
     const finalPath = path.join('uploads', uniqueFilename);
-    fs.renameSync(tempPath, finalPath);
+
+    console.log('[uploadVideo] Processing file:', originalname, '->', finalPath);
+
+    try {
+        fs.renameSync(tempPath, finalPath);
+        console.log('[uploadVideo] File moved successfully');
+    } catch (err) {
+        console.error('[uploadVideo] Failed to move file:', err);
+        return res.status(500).json({ error: 'Failed to save uploaded file' });
+    }
 
     let duration = 0;
-    try { duration = await getVideoDuration(finalPath); } catch (_) { }
+    try {
+        console.log('[uploadVideo] Getting video duration...');
+        duration = await getVideoDuration(finalPath);
+        console.log('[uploadVideo] Duration retrieved:', duration);
+    } catch (err) {
+        console.warn('[uploadVideo] Failed to get duration (continuing with 0):', err.message);
+        duration = 0;
+    }
 
-    const entry = await insertMedia({
-        name: uniqueFilename,
-        path: finalPath,
-        duration,
-        format: path.extname(originalname).slice(1).toLowerCase(),
-        size: fs.statSync(finalPath).size,
-        tags: [],
-        uploadedAt: new Date().toISOString(),
-    });
+    try {
+        const entry = await insertMedia({
+            name: uniqueFilename,
+            path: finalPath,
+            duration,
+            format: path.extname(originalname).slice(1).toLowerCase(),
+            size: fs.statSync(finalPath).size,
+            tags: [],
+            uploadedAt: new Date().toISOString(),
+        });
+        console.log('[uploadVideo] Database entry created:', entry.id);
 
-    generateThumbnail(path.resolve(finalPath), path.join('thumbnails', uniqueFilename.replace(/\.[^/.]+$/, '') + '.jpg')).catch(() => { });
-    res.status(201).json({ status: 'success', data: entry });
+        // Generate thumbnail in background, don't wait for it
+        generateThumbnail(path.resolve(finalPath), path.join('thumbnails', uniqueFilename.replace(/\.[^/.]+$/, '') + '.jpg'))
+            .then(thumbPath => {
+                if (thumbPath) {
+                    console.log('[uploadVideo] Thumbnail generated:', thumbPath);
+                } else {
+                    console.warn('[uploadVideo] Thumbnail generation failed');
+                }
+            })
+            .catch(err => {
+                console.warn('[uploadVideo] Thumbnail generation error:', err.message);
+            });
+
+        res.status(201).json({ status: 'success', data: entry });
+    } catch (err) {
+        console.error('[uploadVideo] Failed to create database entry:', err);
+        // Clean up uploaded file if database insert fails
+        try { fs.unlinkSync(finalPath); } catch (_) { }
+        res.status(500).json({ error: 'Failed to save video to database' });
+    }
 });
 
 // ── Merge videos by IDs ───────────────────────────────────────────────────────
