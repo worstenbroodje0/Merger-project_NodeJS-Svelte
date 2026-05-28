@@ -359,15 +359,6 @@
 		class="flex items-center gap-3 px-5 py-3"
 		style="position:sticky; top:0; z-index:30; border-bottom:0.5px solid #3a4018; background:#1e1e1e;"
 	>
-		<input
-			type="text"
-			placeholder="Search…"
-			bind:value={searchQuery}
-			class="rounded-md px-3 py-1.5 text-sm outline-none"
-			style="width:200px; background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870;"
-			onfocus={(e) => (e.target.style.borderColor = '#6b7a2e')}
-			onblur={(e) => (e.target.style.borderColor = '#4a5520')}
-		/>
 		<div class="ml-auto flex gap-1">
 			<button
 				onclick={() => (activeTab = 'upload')}

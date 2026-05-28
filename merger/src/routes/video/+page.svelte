@@ -13,6 +13,7 @@
 	let showEditModal = $state(false);
 	let authInitialized = $state(false);
 	let searchQuery = $state('');
+	let selectedTag = $state('');
 
 	// Confirm delete
 	let confirmState = $state({ open: false, video: null });
@@ -29,10 +30,15 @@
 		}
 	});
 
+	let allTags = $derived([...new Set(videos.flatMap((v) => v.tags ?? []))].sort());
+
 	let filteredVideos = $derived(
-		!searchQuery.trim()
-			? videos
-			: videos.filter((v) => v.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+		videos.filter((v) => {
+			const matchesSearch =
+				!searchQuery.trim() || v.name?.toLowerCase().includes(searchQuery.toLowerCase());
+			const matchesTag = !selectedTag || v.tags?.includes(selectedTag);
+			return matchesSearch && matchesTag;
+		})
 	);
 
 	onMount(() => {
@@ -200,15 +206,36 @@
 			<p class="mb-4 text-sm" style="color:#7a8840;">
 				All your uploaded and merged videos in one place
 			</p>
-			<input
-				type="text"
-				placeholder="Search videos…"
-				bind:value={searchQuery}
-				class="rounded-md px-3 py-1.5 text-sm outline-none"
-				style="width:220px; background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870;"
-				onfocus={(e) => (e.target.style.borderColor = '#6b7a2e')}
-				onblur={(e) => (e.target.style.borderColor = '#4a5520')}
-			/>
+			<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+				<input
+					type="text"
+					placeholder="Search videos…"
+					bind:value={searchQuery}
+					class="rounded-md px-3 py-1.5 text-sm outline-none"
+					style="width:220px; background:#2a2e1a; border:0.5px solid #4a5520; color:#c8d870;"
+					onfocus={(e) => (e.target.style.borderColor = '#6b7a2e')}
+					onblur={(e) => (e.target.style.borderColor = '#4a5520')}
+				/>
+				{#if allTags.length > 0}
+					<select
+						bind:value={selectedTag}
+						style="background:#2a2e1a; border:0.5px solid {selectedTag ? '#8a9a30' : '#4a5520'}; color:#c8d870; border-radius:6px; padding:6px 10px; font-size:13px; outline:none; cursor:pointer;"
+					>
+						<option value="">All tags</option>
+						{#each allTags as tag}
+							<option value={tag}>{tag}</option>
+						{/each}
+					</select>
+				{/if}
+				{#if selectedTag}
+					<button
+						onclick={() => (selectedTag = '')}
+						style="font-size:12px; color:#a0b040; background:none; border:none; cursor:pointer; padding:0 4px;"
+					>
+						✕ Clear tag
+					</button>
+				{/if}
+			</div>
 		</div>
 
 		{#if loading}
@@ -232,9 +259,9 @@
 		{:else if filteredVideos.length === 0}
 			<div class="py-16 text-center">
 				<p class="mb-2 text-lg" style="color:#7a8840;">
-					{searchQuery ? 'No results found' : 'No videos yet'}
+					{searchQuery || selectedTag ? 'No results found' : 'No videos yet'}
 				</p>
-				{#if !searchQuery}
+				{#if !searchQuery && !selectedTag}
 					<p class="mb-6 text-sm" style="color:#5a6828;">Merge some videos to get started!</p>
 					<button
 						onclick={() => goto('/')}
@@ -321,10 +348,10 @@
 							{#if video.tags?.length}
 								<div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:8px;">
 									{#each video.tags as tag}
-										<span
-											style="background:#3a4018; color:#a0b040; font-size:10px; padding:2px 6px; border-radius:3px;"
-											>{tag}</span
-										>
+										<button
+											onclick={() => (selectedTag = tag)}
+											style="background:{selectedTag === tag ? '#4a5a20' : '#3a4018'}; color:#a0b040; font-size:10px; padding:2px 6px; border-radius:3px; border:{selectedTag === tag ? '0.5px solid #8a9a30' : 'none'}; cursor:pointer;"
+										>{tag}</button>
 									{/each}
 								</div>
 							{/if}
