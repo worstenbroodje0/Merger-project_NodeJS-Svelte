@@ -176,6 +176,15 @@ async function getUserByEmail(email) {
 }
 
 /**
+ * Get user by ID with password (for internal password verification only).
+ * Never return the result of this function directly to the frontend.
+ */
+async function getUserByIdWithPassword(id) {
+  const rows = await userAuthQuery().where(eq(users.id, Number(id)));
+  return shapeUser(rows[0] ?? null);
+}
+
+/**
  * Insert a new user.
  * Pass either `role_id` (number) or legacy string `role` ('admin' | 'user').
  */
@@ -295,6 +304,7 @@ module.exports = {
   getAllUsers,
   getUserById,
   getUserByEmail,
+  getUserByIdWithPassword,
   insertUser,
   updateUserById,
   deleteUserById,

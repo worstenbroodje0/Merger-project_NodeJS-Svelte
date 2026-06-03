@@ -36,6 +36,17 @@
 				Video's
 			</a>
 		{/if}
+		{#if user}
+			<a
+				href="/account"
+				class="flex items-center px-4 text-sm font-medium transition-colors"
+				style="height:42px; color:#d6e08a;"
+				onmouseenter={(e) => (e.target.style.background = '#5a6828')}
+				onmouseleave={(e) => (e.target.style.background = 'transparent')}
+			>
+				Profile
+			</a>
+		{/if}
 		{#if user?.role?.name === 'admin' || user?.role?.name === 'editor'}
 			<a
 				href="/admin"

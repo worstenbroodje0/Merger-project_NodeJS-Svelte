@@ -8,6 +8,7 @@
 	import UsersPanel from '$lib/components/adminpage/UsersPanel.svelte';
 	import VideosPanel from '$lib/components/adminpage/VideosPanel.svelte';
 	import UploadPanel from '$lib/components/adminpage/UploadPanel.svelte';
+	import CreateUserModal from '$lib/components/adminpage/CreateUserModal.svelte';
 
 	const BASE = 'http://localhost:3000/api';
 
@@ -30,6 +31,10 @@
 	let editTags = $state('');
 
 	let roles = $state([]);
+
+	// Create user modal state
+	let createUserModal = $state({ open: false });
+	let createUserLoading = $state(false);
 
 	// Unified confirm state
 	let confirmState = $state({ open: false, type: '', id: null, label: '', merged: false });
@@ -140,6 +145,52 @@
 		editName = u.name || '';
 		editEmail = u.email || '';
 		editRoleId = u.role?.id ?? u.role_id ?? null;
+	}
+
+	function openCreateUserModal() {
+		createUserModal.open = true;
+	}
+
+	function closeCreateUserModal() {
+		createUserModal.open = false;
+	}
+
+	async function handleCreateUser(userData) {
+		createUserLoading = true;
+		try {
+			const response = await fetch(`${BASE}/users`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${getAuthState()?.token}`
+				},
+				body: JSON.stringify(userData)
+			});
+
+			if (response.status === 401) {
+				auth.logout();
+				showError?.('Your session has expired. Please log in again.');
+				return;
+			}
+
+			if (!response.ok) {
+				const data = await response.json();
+				throw new Error(data.message || 'Failed to create user');
+			}
+
+			const result = await response.json();
+			const newUser = result.data;
+
+			// Add the new user to the list
+			users = [newUser, ...users];
+
+			showSuccess?.(`User "${newUser.name}" created successfully!`);
+			closeCreateUserModal();
+		} catch (err) {
+			showError?.(err instanceof Error ? err.message : 'Failed to create user');
+		} finally {
+			createUserLoading = false;
+		}
 	}
 	function openEditVideo(v) {
 		editName = v.name;
@@ -488,6 +539,16 @@
 						style="padding:4px 12px; font-size:12px; border-radius:5px; border:0.5px solid #4a5520; background:#1e2210; color:#a0b040; cursor:pointer;"
 						>Clear</button
 					>{/if}
+				{#if auth.isAdmin()}
+					<button
+						onclick={openCreateUserModal}
+						style="margin-left:auto; padding:6px 14px; font-size:13px; font-weight:500; border-radius:6px; border:none; background:#6b7a2e; color:#fff; cursor:pointer;"
+						onmouseenter={(e) => (e.target.style.background = '#7a8940')}
+						onmouseleave={(e) => (e.target.style.background = '#6b7a2e')}
+					>
+						+ Create User
+					</button>
+				{/if}
 			{:else if activeTab === 'videos'}
 				<input
 					type="text"
@@ -728,5 +789,13 @@
 		</div>
 	</div>
 {/if}
+
+<CreateUserModal
+	open={createUserModal.open}
+	{roles}
+	isLoading={createUserLoading}
+	onClose={closeCreateUserModal}
+	onCreate={handleCreateUser}
+/>
 
 <Notification bind:notification bind:this={notificationRef} />

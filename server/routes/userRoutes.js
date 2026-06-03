@@ -8,10 +8,11 @@ router.get('/', controller.getAllUsers);
 router.get('/:id', controller.getUserById);
 router.post('/', controller.createUser);
 router.put('/:id', controller.updateUser);
+router.post('/:id/change-password', controller.changePassword);
 router.delete('/:id', requireRole('admin'), controller.deleteUser);
 
 // Authentication routes (rate limiting temporarily disabled for testing)
-router.post('/login', authLimiter,requireFields('email', 'password'), controller.login);
+router.post('/login', authLimiter, requireFields('email', 'password'), controller.login);
 router.post('/register', authLimiter, requireFields('name', 'email', 'password'), controller.register);
 router.post('/logout', controller.logout);
 

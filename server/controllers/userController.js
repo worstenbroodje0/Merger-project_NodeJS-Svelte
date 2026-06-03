@@ -1,6 +1,6 @@
 const catchAsync = require("../utils/catchAsync");
 const {
-  getUsersData, getUserById, getUserByEmail,
+  getUsersData, getUserById, getUserByEmail, getUserByIdWithPassword,
   insertUser, updateUserById, deleteUserById,
   getRoleByName,
 } = require("../db");
@@ -152,4 +152,36 @@ exports.login = catchAsync(async (req, res) => {
 
 exports.logout = catchAsync(async (req, res) => {
   res.json({ status: 'success', message: 'Logout successful. Please remove token from client storage.' });
+});
+
+// ── Change Password ────────────────────────────────────────────────────────
+
+exports.changePassword = catchAsync(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const userId = req.params.id;
+
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ status: 'error', message: 'Old password and new password are required' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ status: 'error', message: 'New password must be at least 6 characters' });
+  }
+
+  const user = await getUserByIdWithPassword(userId);
+  if (!user) {
+    return res.status(404).json({ status: 'error', message: 'User not found' });
+  }
+
+  // Verify old password
+  const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+  if (!isPasswordValid) {
+    return res.status(401).json({ status: 'error', message: 'Current password is incorrect' });
+  }
+
+  // Hash new password and update
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  const updatedUser = await updateUserById(userId, { password: hashedPassword });
+
+  res.json({ status: 'success', message: 'Password changed successfully', data: updatedUser });
 });

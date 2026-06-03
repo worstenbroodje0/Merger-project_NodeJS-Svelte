@@ -1,10 +1,8 @@
 <script>
 	// @ts-nocheck
 	import { goto } from '$app/navigation';
-	import { auth } from '$lib/stores/auth.js';
 	import Notification from '$lib/components/Notification.svelte';
 	import ConfirmModal from '$lib/components/ConfirmModal.svelte';
-	import UploadTab from '$lib/components/homepage/UploadTab.svelte';
 	import LibraryMergePanel from '$lib/components/homepage/LibraryMergePanel.svelte';
 	import LibraryVideoGrid from '$lib/components/homepage/LibraryVideoGrid.svelte';
 
@@ -18,7 +16,7 @@
 	let mergeError = $state('');
 	let mergeProgress = $state(0);
 	let mergeStatus = $state('');
-	let activeTab = $state('upload');
+	let activeTab = $state('library');
 	let uploadedFiles = $state(/** @type {File[]} */ ([]));
 	let uploadLoading = $state(false);
 	let uploadError = $state('');
@@ -52,9 +50,7 @@
 		return videos.find((v) => v._uid === uid);
 	}
 	function getAuthState() {
-		let state;
-		auth.subscribe((s) => (state = s))();
-		return state;
+		return { token: null };
 	}
 
 	async function loadVideos() {
@@ -66,12 +62,7 @@
 				const res = await fetch(`${BASE}/media/regular`);
 				if (res.ok) {
 					const data = await res.json();
-					remote = (data.data || [])
-						.filter((v) => {
-							if (!$auth.user?.id) return true;
-							return v.user_id === $auth.user.id || v.user_id === null;
-						})
-						.map(stamp);
+					remote = (data.data || []).map(stamp);
 				} else {
 					console.error('[loadVideos] API error:', res.status, res.statusText);
 					error = `Failed to load videos: ${res.statusText}`;
@@ -150,7 +141,7 @@
 						'videoIds',
 						JSON.stringify(selectedIds.map((uid) => getVideo(uid)?._id ?? getVideo(uid)?.id))
 					);
-					fd.append('user_id', $auth.user?.id || null);
+					fd.append('user_id', null);
 					if (overlayType === 'intro' || overlayType === 'both') {
 						fd.append(
 							'intro',
@@ -177,7 +168,7 @@
 				} else {
 					const body = {
 						videoIds: selectedIds.map((uid) => getVideo(uid)?._id ?? getVideo(uid)?.id),
-						user_id: $auth.user?.id || null
+						user_id: null
 					};
 					if (showOverlayOptions) {
 						if (overlayType === 'intro' || overlayType === 'both')
@@ -231,9 +222,9 @@
 			const overlayConfig = uploadTabRef?.getOverlayConfig() ?? {};
 			const fd = new FormData();
 			uploadedFiles.forEach((f) => fd.append('videos', f));
-			fd.append('user_id', $auth.user?.id || null);
+			fd.append('user_id', null);
 
-			// Add intro/outro configuration
+			// Add intro/outro co
 			if (overlayConfig.showOverlayOptions) {
 				const {
 					showOverlayOptions,
@@ -350,7 +341,6 @@
 			showError?.('Error updating video');
 		}
 	}
-	auth.initialize();
 	loadVideos();
 </script>
 
@@ -359,73 +349,42 @@
 		class="flex items-center gap-3 px-5 py-3"
 		style="position:sticky; top:0; z-index:30; border-bottom:0.5px solid #3a4018; background:#1e1e1e;"
 	>
-		<div class="ml-auto flex gap-1">
-			<button
-				onclick={() => (activeTab = 'upload')}
-				class="rounded-md px-5 py-1.5 text-sm font-medium"
-				style="background:{activeTab === 'upload'
-					? '#4a5520'
-					: 'transparent'}; border:0.5px solid #4a5520; color:{activeTab === 'upload'
-					? '#d6e08a'
-					: '#7a8840'}; cursor:pointer;">Upload</button
-			>
-			{#if $auth.user?.role?.name === 'admin' || $auth.user?.role?.name === 'editor' || $auth.user?.role?.name === 'user'}
-				<button
-					onclick={() => (activeTab = 'library')}
-					class="rounded-md px-5 py-1.5 text-sm font-medium"
-					style="background:{activeTab === 'library'
-						? '#4a5520'
-						: 'transparent'}; border:0.5px solid #4a5520; color:{activeTab === 'library'
-						? '#d6e08a'
-						: '#7a8840'}; cursor:pointer;">Library</button
-				>
-			{/if}
-		</div>
+		<h1 class="text-2xl font-bold" style="color:#7a8840;">Video Merger</h1>
 	</div>
 
 	<div class="flex" style="min-height:calc(100vh - 90px);">
 		<div class="min-w-0 flex-1 p-5">
-			{#if activeTab === 'upload'}
-				<UploadTab
-					bind:uploadedFiles
-					{uploadLoading}
-					{uploadError}
-					onMerge={uploadAndMerge}
-					bind:this={uploadTabRef}
-				/>
-			{:else if activeTab === 'library'}
-				{#if loading}
-					<div class="py-16 text-center"><p style="color:#7a8840;">Loading videos…</p></div>
-				{:else if error}
-					<div class="py-16 text-center">
-						<div
-							class="mb-4 inline-block rounded-lg px-4 py-3 text-sm"
-							style="background:#3a1a1a; border:0.5px solid #7a3020; color:#e8a0a0;"
-						>
-							{error}
-						</div>
-						<div>
-							<button
-								onclick={loadVideos}
-								class="rounded-md px-4 py-2 text-sm"
-								style="background:#6b7a2e; border:none; color:#fff; cursor:pointer;">Retry</button
-							>
-						</div>
+			{#if loading}
+				<div class="py-16 text-center"><p style="color:#7a8840;">Loading videos…</p></div>
+			{:else if error}
+				<div class="py-16 text-center">
+					<div
+						class="mb-4 inline-block rounded-lg px-4 py-3 text-sm"
+						style="background:#3a1a1a; border:0.5px solid #7a3020; color:#e8a0a0;"
+					>
+						{error}
 					</div>
-				{:else if videos.length === 0}
-					<div class="py-16 text-center"><p style="color:#5a6828;">No videos found</p></div>
-				{:else}
-					<LibraryVideoGrid
-						{videos}
-						user={$auth.user}
-						bind:selectedIds
-						onDelete={askDeleteVideo}
-						onEdit={editVideo}
-						bind:showEditModal
-						bind:editingVideo
-						onSaveEdit={saveVideoEdit}
-					/>
-				{/if}
+					<div>
+						<button
+							onclick={loadVideos}
+							class="rounded-md px-4 py-2 text-sm"
+							style="background:#6b7a2e; border:none; color:#fff; cursor:pointer;">Retry</button
+						>
+					</div>
+				</div>
+			{:else if videos.length === 0}
+				<div class="py-16 text-center"><p style="color:#5a6828;">No videos found</p></div>
+			{:else}
+				<LibraryVideoGrid
+					{videos}
+					user={null}
+					bind:selectedIds
+					onDelete={askDeleteVideo}
+					onEdit={editVideo}
+					bind:showEditModal
+					bind:editingVideo
+					onSaveEdit={saveVideoEdit}
+				/>
 			{/if}
 		</div>
 

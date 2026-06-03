@@ -29,12 +29,13 @@ declare module "$app/types" {
 	type MatcherParam<M> = M extends (param : string) => param is (infer U extends string) ? U : string;
 
 	export interface AppTypes {
-		RouteId(): "/" | "/admin" | "/completion" | "/forgot-password" | "/login" | "/logout" | "/reset-password" | "/signup" | "/video";
+		RouteId(): "/" | "/account" | "/admin" | "/completion" | "/forgot-password" | "/login" | "/logout" | "/reset-password" | "/signup" | "/video";
 		RouteParams(): {
 			
 		};
 		LayoutParams(): {
 			"/": Record<string, never>;
+			"/account": Record<string, never>;
 			"/admin": Record<string, never>;
 			"/completion": Record<string, never>;
 			"/forgot-password": Record<string, never>;
@@ -44,7 +45,7 @@ declare module "$app/types" {
 			"/signup": Record<string, never>;
 			"/video": Record<string, never>
 		};
-		Pathname(): "/" | "/admin" | "/completion" | "/forgot-password" | "/login" | "/logout" | "/reset-password" | "/signup" | "/video";
+		Pathname(): "/" | "/account" | "/admin" | "/completion" | "/forgot-password" | "/login" | "/logout" | "/reset-password" | "/signup" | "/video";
 		ResolvedPathname(): `${"" | `/${string}`}${ReturnType<AppTypes['Pathname']>}`;
 		Asset(): "/robots.txt" | string & {};
 	}
