@@ -45,7 +45,7 @@ router.post('/merge', uploadLimiter, enforceVideoSizeLimit, upload.fields([
 ]), handleMulterError, controller.mergeByIds);
 
 router.post('/merge-upload', uploadLimiter, enforceVideoSizeLimit, upload.fields([
-    { name: 'videos', maxCount: 10 },
+    { name: 'videos', maxCount: 15 },
     { name: 'introImage', maxCount: 1 },
     { name: 'outroImage', maxCount: 1 }
 ]), handleMulterError, controller.mergeUploadedVideos);

@@ -1,6 +1,7 @@
 require('dotenv').config({ path: '.env' });
 
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const mediaRoutes = require('./routes/mediaRoutes');
 const cors = require('cors');
 const {
@@ -77,6 +78,9 @@ app.use(cors({
     methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Range', 'Content-Type', 'Authorization']
 }));
+
+// Parse cookies so `protect` can check for token in cookies for dev convenience
+app.use(cookieParser());
 
 // Temporarily disable security headers for video testing
 app.use(securityHeaders);

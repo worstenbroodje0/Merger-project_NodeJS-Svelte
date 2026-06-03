@@ -66,7 +66,7 @@
 			if (response.ok) {
 				const data = await response.json();
 				const currentUserId = $auth.user?.id;
-				videos = (data.data || []).filter((v) => v.user_id === currentUserId);
+				videos = (data.data || []).filter((v) => v.user_id === currentUserId || v.user_id === null);
 			} else {
 				throw new Error('Failed to fetch videos');
 			}
@@ -219,7 +219,9 @@
 				{#if allTags.length > 0}
 					<select
 						bind:value={selectedTag}
-						style="background:#2a2e1a; border:0.5px solid {selectedTag ? '#8a9a30' : '#4a5520'}; color:#c8d870; border-radius:6px; padding:6px 10px; font-size:13px; outline:none; cursor:pointer;"
+						style="background:#2a2e1a; border:0.5px solid {selectedTag
+							? '#8a9a30'
+							: '#4a5520'}; color:#c8d870; border-radius:6px; padding:6px 10px; font-size:13px; outline:none; cursor:pointer;"
 					>
 						<option value="">All tags</option>
 						{#each allTags as tag}
@@ -350,8 +352,13 @@
 									{#each video.tags as tag}
 										<button
 											onclick={() => (selectedTag = tag)}
-											style="background:{selectedTag === tag ? '#4a5a20' : '#3a4018'}; color:#a0b040; font-size:10px; padding:2px 6px; border-radius:3px; border:{selectedTag === tag ? '0.5px solid #8a9a30' : 'none'}; cursor:pointer;"
-										>{tag}</button>
+											style="background:{selectedTag === tag
+												? '#4a5a20'
+												: '#3a4018'}; color:#a0b040; font-size:10px; padding:2px 6px; border-radius:3px; border:{selectedTag ===
+											tag
+												? '0.5px solid #8a9a30'
+												: 'none'}; cursor:pointer;">{tag}</button
+										>
 									{/each}
 								</div>
 							{/if}

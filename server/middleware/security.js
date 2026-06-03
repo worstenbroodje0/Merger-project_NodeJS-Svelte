@@ -6,6 +6,8 @@ const hpp = require('hpp');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
 // ── SQL Injection / Input Sanitization ───────────────────────────────────────
 
 const sanitizeString = (str) => {
@@ -77,20 +79,43 @@ const requireFields = (...fields) => (req, res, next) => {
  * Attaches { id, email } to req.user on success.
  */
 const protect = (req, res, next) => {
+    // Development-friendly token resolution: check Authorization header,
+    // then `x-access-token`, then query param `token`, then cookies.
+    // Do not log token values in production.
     const authHeader = req.headers.authorization;
+    let token = null;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ status: 'error', message: 'Not authenticated' });
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
     }
 
-    const token = authHeader.split(' ')[1];
+    if (!token && req.headers['x-access-token']) {
+        token = req.headers['x-access-token'];
+    }
+
+    if (!token && req.query && req.query.token) {
+        token = req.query.token;
+    }
+
+    // cookie-parser may populate req.cookies
+    if (!token && req.cookies && req.cookies.token) {
+        token = req.cookies.token;
+    }
+
+    // Debug info (development only): report where token was found or not.
+    if (process.env.NODE_ENV !== 'production') {
+        const hasAuthHeader = !!authHeader;
+        const hasXToken = !!req.headers['x-access-token'];
+        const hasQueryToken = !!(req.query && req.query.token);
+        const hasCookieToken = !!(req.cookies && req.cookies.token);
+    }
 
     if (!token || token.trim() === '') {
-        return res.status(401).json({ status: 'error', message: 'Token is empty or malformed' });
+        return res.status(401).json({ status: 'error', message: 'Not authenticated or token missing' });
     }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded; // { id, email }
         next();
     } catch (err) {
@@ -194,11 +219,11 @@ const VIDEO_SIZE_LIMIT = 100 * 1024 * 1024; // 100 MB in bytes
  * Multer file filter — rejects non-video MIME types.
  */
 const videoFileFilter = (req, file, cb) => {
-    const allowedMimeTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
+    const allowedMimeTypes = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo', 'image/jpeg', 'image/png', 'image/gif'];
     if (allowedMimeTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
-        cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: mp4, webm, mov, avi`), false);
+        cb(new Error(`Unsupported file type: ${file.mimetype}. Allowed: mp4, webm, mov, avi, jpg, png, gif`), false);
     }
 };
 

@@ -8,6 +8,8 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const mailService = require("../services/mailService");
 
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
 exports.getAllUsers = catchAsync(async (req, res) => {
   const allUsers = await getUsersData();
   res.json({ status: 'success', results: allUsers.length, data: allUsers });
@@ -101,7 +103,7 @@ exports.register = catchAsync(async (req, res) => {
 
   const token = jwt.sign(
     { id: newUser.id, email: newUser.email, role_id: newUser.role_id },
-    process.env.JWT_SECRET || 'your-secret-key',
+    JWT_SECRET,
     { expiresIn: '24h' }
   );
 
@@ -135,7 +137,7 @@ exports.login = catchAsync(async (req, res) => {
 
   const token = jwt.sign(
     { id: user.id, email: user.email, role_id: user.role_id },
-    process.env.JWT_SECRET || 'your-secret-key',
+    JWT_SECRET,
     { expiresIn: '24h' }
   );
 

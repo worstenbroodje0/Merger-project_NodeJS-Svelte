@@ -324,6 +324,7 @@ exports.uploadVideo = catchAsync(async (req, res) => {
             size: fs.statSync(finalPath).size,
             tags: [],
             uploadedAt: new Date().toISOString(),
+            user_id: req.user?.id ?? null,
         });
         console.log('[uploadVideo] Database entry created:', entry.id);
 
@@ -537,7 +538,7 @@ exports.mergeByIds = catchAsync(async (req, res) => {
             size: fs.statSync(outputPath).size,
             tags: [],
             uploadedAt: new Date().toISOString(),
-            user_id: req.body.user_id || null,
+            user_id: req.user?.id ?? req.body.user_id ?? null,
         });
 
         // Add a small delay before thumbnail generation to ensure file is ready
@@ -592,6 +593,8 @@ exports.EditVideo = catchAsync(async (req, res) => {
     const { id } = req.params;
     const { name, tags } = req.body;
 
+    console.log('[EditVideo] id:', id, 'user:', req.user ? { id: req.user.id, email: req.user.email } : null, 'body:', { name, tags });
+
     // Get current video to check if name is changing
     let currentVideo = await getMediaById(Number(id));
     if (!currentVideo) {
@@ -612,9 +615,16 @@ exports.EditVideo = catchAsync(async (req, res) => {
         }
     }
 
-    let updatedVideo = await updateMediaById(Number(id), { name, tags });
+    const updateFields = { name, tags };
+    if (!currentVideo.user_id && req.user?.id) {
+        updateFields.user_id = req.user.id;
+    }
+
+    let updatedVideo = await updateMediaById(Number(id), updateFields);
+    console.log('[EditVideo] updateMediaById result:', updatedVideo);
     if (!updatedVideo) {
-        updatedVideo = await updateMergedMediaById(Number(id), { name, tags });
+        updatedVideo = await updateMergedMediaById(Number(id), updateFields);
+        console.log('[EditVideo] updateMergedMediaById result:', updatedVideo);
     }
 
     if (!updatedVideo) {
@@ -687,6 +697,7 @@ exports.applyOverlay = catchAsync(async (req, res) => {
         size: fs.statSync(outputPath).size,
         tags: [],
         uploadedAt: new Date().toISOString(),
+        user_id: req.user?.id ?? null,
     });
 
     generateThumbnail(outputPath, path.join('thumbnails', outputName.replace(/\.[^/.]+$/, '') + '.jpg')).catch(() => { });
@@ -749,6 +760,7 @@ exports.applySlates = catchAsync(async (req, res) => {
             size: fs.statSync(outputPath).size,
             tags: [],
             uploadedAt: new Date().toISOString(),
+            user_id: req.user?.id ?? null,
         });
 
         generateThumbnail(outputPath, path.join('thumbnails', outputName.replace(/\.[^/.]+$/, '') + '.jpg')).catch(() => { });
@@ -766,9 +778,11 @@ exports.mergeUploadedVideos = catchAsync(async (req, res) => {
     const outroImageFile = req.files?.outroImage?.[0];
 
     // Only attach user_id when genuinely logged in to satisfy the FK constraint
-    const userId = req.body.user_id && req.body.user_id !== 'null'
-        ? parseInt(req.body.user_id, 10)
-        : null;
+    const userId = req.user?.id
+        ? req.user.id
+        : req.body.user_id && req.body.user_id !== 'null'
+            ? parseInt(req.body.user_id, 10)
+            : null;
 
     if (!videoFiles || videoFiles.length < 2) {
         return res.status(400).json({ error: 'At least 2 video files are required' });
