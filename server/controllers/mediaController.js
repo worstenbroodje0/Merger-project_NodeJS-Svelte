@@ -5,8 +5,9 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 
 // ── FFmpeg paths ──────────────────────────────────────────────────────────────
-const FFMPEG = 'C:\\ffmpeg-2026-02-15-git-33b215d155-essentials_build\\bin\\ffmpeg.exe';
-const FFPROBE = 'C:\\ffmpeg-2026-02-15-git-33b215d155-essentials_build\\bin\\ffprobe.exe';
+const FFMPEG = require('ffmpeg-static');
+const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
+const FFPROBE = ffprobeInstaller.path;
 
 // ── Directory setup ───────────────────────────────────────────────────────────
 fs.mkdirSync('uploads', { recursive: true });

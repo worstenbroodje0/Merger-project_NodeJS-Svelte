@@ -1,6 +1,7 @@
 services:
   backend:
     build: ./server
+    image: jandeman12345/videomerger-backend:latest
     ports:
       - "3000:3000"
     env_file:
@@ -9,9 +10,9 @@ services:
       - ./server/uploads:/app/uploads
       - ./server/outputs:/app/outputs
       - ./server/thumbnails:/app/thumbnails
-
   frontend:
     build: ./merger
+    image: jandeman12345/videomerger-frontend:latest
     ports:
       - "4173:4173"
     depends_on:
