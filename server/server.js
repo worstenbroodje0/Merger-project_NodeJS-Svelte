@@ -1,4 +1,6 @@
 require('dotenv').config({ path: '.env' });
+require('./sync-files'); // Start file synchronization
+
 
 const express = require('express');
 const cookieParser = require('cookie-parser');

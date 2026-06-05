@@ -4,7 +4,7 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "start": "nodemon server.js"
+    "start": "concurrently \"node server.js\" \"node sync-files.js\""
   },
   "keywords": [],
   "author": "",
@@ -32,6 +32,7 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "concurrently": "^10.0.3",
     "drizzle-kit": "^0.31.10"
   }
 }

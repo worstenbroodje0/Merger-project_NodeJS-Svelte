@@ -6,6 +6,9 @@
 	import LibraryMergePanel from '$lib/components/homepage/LibraryMergePanel.svelte';
 	import LibraryVideoGrid from '$lib/components/homepage/LibraryVideoGrid.svelte';
 
+	import { auth } from '$lib/stores/auth';
+	import { get } from 'svelte/store';
+
 	const BASE = 'http://localhost:3000/api';
 
 	let videos = $state([]);
@@ -50,7 +53,7 @@
 		return videos.find((v) => v._uid === uid);
 	}
 	function getAuthState() {
-		return { token: null };
+		return get(auth);
 	}
 
 	async function loadVideos() {
